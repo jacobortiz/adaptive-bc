@@ -34,3 +34,20 @@ def test_erase_neighbor(test_node: Node):
 def test_check_neighbor(test_node: Node):
     assert test_node.check_neighbor(2) == True
     assert test_node.check_neighbor(4) == False
+
+def test_rewire_probability(test_node: Node):
+    opinions = [1, 1, 1, 1, 1]
+    opinions[test_node.id] = test_node.current_opinion
+    expected_distribution = [0.5, 0, 0, 0, 0.5]
+    test_distribution = test_node.rewire_probability(opinions)
+    assert np.all([test_distribution[i] == expected_distribution[i] for i in range(5)])
+
+def test_rewire(test_node: Node):
+    opinions = [1, 1, 1, 1, 1]
+    opinions[test_node.id] = test_node.current_opinion
+    neighbors_before_rewiring = test_node.neighbors.copy()
+    RNG = np.random.default_rng()
+    new_neighbor = test_node.rewire(opinions, RNG)
+    assert new_neighbor not in neighbors_before_rewiring
+    assert ((new_neighbor == 0 or new_neighbor == 4))
+    assert len(neighbors_before_rewiring) < len(test_node.neighbors)
