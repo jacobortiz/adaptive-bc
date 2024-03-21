@@ -18,7 +18,7 @@ class Node:
     def check_neighbor(self, id: int) -> bool:
         return id in self.neighbors
     
-    def update_opinino(self, new_opinion: float) -> None:
+    def update_opinion(self, new_opinion: float) -> None:
         self.total_opinion_change += abs(self.current_opinion - new_opinion)
         self.current_opinion = new_opinion
 
