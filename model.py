@@ -200,7 +200,7 @@ class Model:
         if not filename:
             C = f'{self.C:.2f}'.replace('.','')
             beta = f'{self.beta:.2f}'.replace('.','')
-            filename = f'test/C_{C}_beta_{beta}_trial_{self.trial}_spk_{self.spawn_key}.pbz2'
+            filename = f'data/C_{C}_beta_{beta}_trial_{self.trial}_spk_{self.spawn_key}.pbz2'
         
         print(f'saving model to {filename}')
         with bz2.BZ2File(filename, 'w') as f: 
@@ -216,7 +216,7 @@ class Model:
         print(f'Convergence parameter: {self.alpha}')
         print(f'Confidence bound: {self.C}')
         print(f'Rewiring threshold: {self.beta}')
-        print(f'Edges to rewire: {self.M}')
+        print(f'Edges to rewire at each time step: {self.M}')
         print(f'Node pairs to update opinions: {self.K}')
         print(f'Save opinion time series: {self.full_time_series}')
         
