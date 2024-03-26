@@ -1,14 +1,14 @@
 import networkx as nx
 from node import Node
 import numpy as np
-from numpy.random import RandomState, MT19937
+# from numpy.random import RandomState, MT19937
 import random
 
 import pickle
 import bz2
 
 class Model:
-    def __init__(self, seed_sequence, **kwparams) -> None: 
+    def __init__(self, seed_sequence, **kwparams) -> None:
         # set random state for model instance to ensure repeatability
         self.seed_sequence = seed_sequence
         try:
@@ -20,7 +20,7 @@ class Model:
         self.RNG = np.random.default_rng(seed_sequence)
         # set state of random module
         random.seed(seed_sequence)
-        self.random_state = RandomState(MT19937(seed_sequence))
+        # self.random_state = seed_sequence # RandomState(MT19937(seed_sequence)) or random_state???
 
         # set model params
         self.trial = kwparams['trial']                      # trial ID (for saving model)
@@ -61,8 +61,8 @@ class Model:
         # random initial opinions from [0, 1] uniformly
         opinions = self.RNG.random(self.N)
         # generate G(N, p) random graph
-        G = nx.fast_gnp_random_graph(n=self.N, p=self.p, seed=self.random_state, directed=False)
-        
+        G = nx.fast_gnp_random_graph(n=self.N, p=self.p, seed=self.seed_sequence, directed=False)
+
         nodes = []
         for i in range(self.N):
             node_neighbors = list(G[i])
@@ -76,7 +76,7 @@ class Model:
         self.edges = edges.copy()
         self.initial_edges = edges.copy()
         self.nodes = nodes
-        
+
     # run the model
     def run(self, test=False) -> None:
         time = 0
@@ -84,6 +84,9 @@ class Model:
         def rewire():
             # get discordant edges
             discordant_edges = [(i, j) for i, j in self.edges if abs(self.X[i] - self.X[j]) > self.beta]
+
+            # if test and discordant_edges:
+            #     print(f'discordant edges: {discordant_edges}')
 
             self.num_discordant_edges[time] = len(discordant_edges)
 
@@ -94,7 +97,7 @@ class Model:
                 edges_to_cut = [discordant_edges[i] for i in index]
             else:
                 edges_to_cut = discordant_edges
-            
+
             # cut and connect new edges
             for edge in edges_to_cut:
                 self.edges.remove(edge)
@@ -133,10 +136,10 @@ class Model:
                 if abs(self.X[u] - self.X[w] <= self.C):
                     X_new[u] = self.X[u] + self.alpha * (self.X[w] - self.X[u])
                     X_new[w] = self.X[w] + self.alpha * (self.X[u] - self.X[w])
-                    
+
                     self.nodes[u].update_opinion(X_new[u])
                     self.nodes[w].update_opinion(X_new[w])
-                    
+
             # update data
             self.X_prev = self.X.copy()
             self.X = X_new
@@ -146,7 +149,7 @@ class Model:
             elif (time % 250 == 0):
                 t_prime = int(time / 250)
                 self.X_data[t_prime + 1] = X_new
-        
+
         def check_convergence():
             state_change = np.sum(np.abs(self.X - self.X_prev))
             self.stationary_counter = self.stationary_counter + 1 if state_change < self.tolerance else 0
@@ -163,7 +166,7 @@ class Model:
 
         self.convergence_time = time
         if not test: self.save_model()
-    
+
     def get_edges(self, time: int = None) -> list:
         if time == None or time >= self.convergence_time or self.full_time_series == False:
             return self.edges.copy()
@@ -177,7 +180,7 @@ class Model:
             for (_, old_edge, new_edge) in edge_changes:
                 edges.remove(old_edge)
                 edges.append(new_edge)
-            
+
             return edges
 
 
@@ -194,7 +197,7 @@ class Model:
             self.X_data = self.X_data[:self.convergence_time, :]
         else:
             self.X_data = self.X_data[:int(self.convergence_time / 250) + 1, :]
-        
+
         self.num_discordant_edges = self.num_discordant_edges[:self.convergence_time - 1]
         self.num_discordant_edges = np.trim_zeros(self.num_discordant_edges)
 
@@ -202,9 +205,9 @@ class Model:
             C = f'{self.C:.2f}'.replace('.','')
             beta = f'{self.beta:.2f}'.replace('.','')
             filename = f'data/C_{C}_beta_{beta}_trial_{self.trial}_spk_{self.spawn_key}.pbz2'
-        
+
         print(f'saving model to {filename}')
-        with bz2.BZ2File(filename, 'w') as f: 
+        with bz2.BZ2File(filename, 'w') as f:
             pickle.dump(self, f)
 
     def info(self):
@@ -217,7 +220,6 @@ class Model:
         print(f'Convergence parameter: {self.alpha}')
         print(f'Confidence bound: {self.C}')
         print(f'Rewiring threshold: {self.beta}')
-        print(f'Edges to rewire at each time step: {self.M}')
-        print(f'Node pairs to update opinions: {self.K}')
+        print(f'Edges to rewire at each time step, M: {self.M}')
+        print(f'Node pairs to update opinions, K: {self.K}')
         print(f'Save opinion time series: {self.full_time_series}')
-        

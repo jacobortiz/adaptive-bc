@@ -10,12 +10,12 @@ def kwparams(C, beta, trial):
         "max_steps" : 1000000,
         "N" : 1000,
         "p" : 0.1,
-        "tolerance" : 10e-5,
-        "alpha" : 0.1, # 0.5 is consensus
+        "tolerance" : 1e-5,
+        "alpha" : 0.1, # 0.5 is consensus parameter
         "beta" : beta,
         "C" : C,
         "M" : 1,
-        "K" : 1,
+        "K" : 5,
         "full_time_series": True
     }
     return params
@@ -34,5 +34,4 @@ if __name__ == '__main__':
     trial = 1
     print(f'running with params: \n{kwparams(C, beta, trial)}')
 
-    run_model(seed_sequence=seed, model_params=kwparams(C, beta, trial), filename='baseline-dw-alpha_0.1')
-
+    run_model(seed_sequence=seed, model_params=kwparams(C, beta, trial), filename='m3-run')
