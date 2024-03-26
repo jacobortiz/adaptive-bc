@@ -8,7 +8,8 @@ import networkx as nx
 
 if __name__ == '__main__':
     # load the model
-    loaded_model = bz2.BZ2File('data/test_run.pbz2', 'rb')
+    file = 'baseline-dw-alpha_0.1'
+    loaded_model = bz2.BZ2File(f'data/{file}.pbz2', 'rb')
     loaded_model = pickle.load(loaded_model)
     # loaded_model.info()
 
@@ -24,6 +25,8 @@ if __name__ == '__main__':
     else:
         print(f'Rewiring threshold: {loaded_model.beta}')
         print(f'Edge changes: \n{loaded_model.edge_changes}')
+
+    loaded_model.info()
     
     # Plot opinion evolution
     plt.figure(figsize=(12, 8))
@@ -31,7 +34,7 @@ if __name__ == '__main__':
     plt.xlabel('Time')
     plt.ylabel('Opinion')
     # remove? 
-    plt.legend(['Nodes in Network'], bbox_to_anchor=(1.3, 1), loc='upper right')
-    plt.annotate(f'$confidence$ $\epsilon = {loaded_model.C}$', xy=(1.05,.8), xycoords='axes fraction', fontsize=12)
-    plt.title('Opinion Evolution')
+    # plt.legend(['Nodes in Network'], bbox_to_anchor=(1.3, 1), loc='upper right')
+    # plt.annotate(f'$confidence$ $\epsilon = {loaded_model.C}$', xy=(1.05,.8), xycoords='axes fraction', fontsize=12)
+    plt.title(f'Opinion Evolution: Baseline-DW, $𝛼={loaded_model.alpha}$')
     plt.show()

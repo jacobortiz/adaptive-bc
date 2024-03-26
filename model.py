@@ -136,6 +136,7 @@ class Model:
                     
                     self.nodes[u].update_opinion(X_new[u])
                     self.nodes[w].update_opinion(X_new[w])
+                    
             # update data
             self.X_prev = self.X.copy()
             self.X = X_new
