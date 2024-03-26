@@ -25,11 +25,16 @@ def run_model(seed_sequence, model_params, filename=None):
     model.run(test=True)
     model.save_model(f'data/{filename}.pbz2')
 
+    print(f'Network assortativity: {model.start_assortativity}')
+    print(f'End assortativity: {model.end_assortativity}')
+
 if __name__ == '__main__':
 
     seed = 123456789
 
     C = 1
+
+    # beta = 0.25
     beta = 1
     trial = 1
     print(f'running with params: \n{kwparams(C, beta, trial)}')

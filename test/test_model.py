@@ -32,23 +32,20 @@ def model_params():
 
 @pytest.fixture
 def seed_sequence():
-    return seed # SeedSequence(seed)
+    return seed
 
-def __equivalent_nodes(node_1, node_2):
+def __equivalent_nodes(node_1: Node, node_2: Node):
     node_attributes = ['id', 'initial_opinion', 'current_opinion', 'neighbors']
     # return True if node_1, node_2 attributes are equivalent
     return np.all([ getattr(node_1, attr) == getattr(node_2, attr) for attr in node_attributes])
 
-def test_model_params(seed_sequence, model_params):
+def test_model_params(seed_sequence: int, model_params: dict):
     model = Model(seed_sequence, **model_params)
     for k, v in model_params.items():
         assert getattr(model, k) == v
 
-def test_initiale_system(seed_sequence, model_params):
-    SSQ = deepcopy(seed_sequence)
-    RNG = np.random.default_rng(SSQ)
-    # RS = RandomState(MT19937(SSQ))
-
+def test_initialize_system(seed_sequence: int, model_params: dict):
+    RNG = np.random.default_rng(seed_sequence)
     X = RNG.random(model_params['N'])
     G = nx.fast_gnp_random_graph(n=model_params['N'], p=model_params['p'], seed=seed_sequence, directed=False)
 
@@ -69,7 +66,7 @@ def test_initiale_system(seed_sequence, model_params):
     for i in range(len(nodes)):
         assert __equivalent_nodes(nodes[i], model.nodes[i])
 
-def test_rewire(seed_sequence, model_params):
+def test_rewire(seed_sequence: int, model_params: dict):
     model = Model(seed_sequence, **model_params)
     original_edges = model.edges.copy()
 
@@ -77,7 +74,6 @@ def test_rewire(seed_sequence, model_params):
     model.run(test=True)
     num_discordant_end = len([(i, j) for i, j in model.edges if abs(model.X[i] - model.X[j]) >= model.beta])
 
-    # TODO: edge changes are being recorded, validate
     print(f'model edges {model.edges}')
     print(f'model edge changes {model.edge_changes}')
 
@@ -85,12 +81,12 @@ def test_rewire(seed_sequence, model_params):
     assert model.edges != original_edges
     assert num_discordant_start > num_discordant_end
 
-def test_dw_step(seed_sequence, model_params):
+def test_dw_step(seed_sequence: int, model_params: dict):
     model = Model(seed_sequence=seed_sequence, **model_params)
     model.run(test=True)
-    # print(model.X_data)
     assert model.stationary_flag == 1
     CT = model.convergence_time
+
     assert np.sum(np.abs(model.X_data[CT - 50,:] - model.X_data[CT - 51,:])) < model.tolerance
     assert np.sum(np.abs(model.X_data[CT - 2,:] - model.X_data[CT - 1,:])) < model.tolerance
     assert not np.array_equal(model.X_data[0, :], model.X_data[CT - 1, :])
@@ -98,8 +94,8 @@ def test_dw_step(seed_sequence, model_params):
     print(f'initial opinions: {model.X_data[0, :]}')
     print(f'final opinions: {model.X_data[CT - 1, :]}')
 
-# assuming beta < 1 for this test
-def test_get_network(seed_sequence, model_params):
+# assuming beta < 1 for this test, if its 1, then the test will fail
+def test_get_network(seed_sequence: int, model_params: dict):
     model = Model(seed_sequence, **model_params)
     model.run(test=True)
     assert list(model.get_network(time=0).edges) == model.initial_edges
@@ -107,11 +103,14 @@ def test_get_network(seed_sequence, model_params):
     # order is wrong, but edges are the same
     # assert list(model.get_network(time=1).edges) == list(nx.Graph([(2, 6), (3, 4), (3, 5), (8, 14), (10, 11), (13, 14)]).edges)
 
-def test_compressed_pickle(seed_sequence, model_params):
-    SSQ = deepcopy(seed_sequence)
-    RNG = np.random.default_rng(SSQ)
-    # RS = RandomState(MT19937(SSQ))
+def test_get_opinions(seed_sequence: int, model_params: dict):
+    model = Model(seed_sequence, **model_params)
+    model.run(test=True)
+    assert np.all(model.get_opinions(time=0) == model.X_data[0, :])
+    assert np.all(model.get_opinions(time=1) == model.X_data[1, :])
 
+def test_compressed_pickle(seed_sequence: int, model_params: dict):
+    RNG = np.random.default_rng(seed_sequence)
     X = RNG.random(model_params['N'])
     G = nx.fast_gnp_random_graph(n=model_params['N'], p=model_params['p'], seed=seed_sequence, directed=False)
 
@@ -143,7 +142,7 @@ def test_compressed_pickle(seed_sequence, model_params):
     for i in range(len(nodes)):
         assert __equivalent_nodes(nodes[i], loaded_model.nodes[i])
 
-def test_save_model(seed_sequence, model_params):
+def test_save_model(seed_sequence: int, model_params: dict):
     model = Model(seed_sequence, **model_params)
     model.run(test=True)
     filename = 'test/test_save_model.pbz2'

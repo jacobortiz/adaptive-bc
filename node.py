@@ -1,10 +1,11 @@
 import numpy as np
 
 class Node:
-    def __init__(self, id: int, initial_opinion: float, neighbors: list = None) -> None:
+    def __init__(self, id: int, initial_opinion: float, neighbors: list = None, confidence_bound: float = None) -> None:
         self.id = id
         self.initial_opinion = initial_opinion
         self.neighbors = neighbors if neighbors is not None else []
+        self.confidence_bound = confidence_bound
 
         self.current_opinion = initial_opinion
         self.total_opinion_change = 0

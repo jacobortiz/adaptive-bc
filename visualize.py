@@ -34,7 +34,6 @@ if __name__ == '__main__':
     plt.plot(loaded_model.X_data)
     plt.xlabel('Time')
     plt.ylabel('Opinion')
-    # remove?
     # plt.legend(['Nodes in Network'], bbox_to_anchor=(1.3, 1), loc='upper right')
     # plt.annotate(f'$confidence$ $\epsilon = {loaded_model.C}$', xy=(1.05,.8), xycoords='axes fraction', fontsize=12)
     plt.title(f'Opinion Evolution: Baseline-DW, $𝛼={loaded_model.alpha}$')

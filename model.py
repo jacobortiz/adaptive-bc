@@ -57,16 +57,25 @@ class Model:
         # if beta == 1, no rewiring, standard BC applies
         self.rewiring = False if int(kwparams['beta'] == 1) else True
 
+        # before running model, calculate network assortativity
+        self.start_assortativity = nx.degree_assortativity_coefficient(nx.Graph(self.edges))
+
     def __initialize_network(self) -> None:
         # random initial opinions from [0, 1] uniformly
         opinions = self.RNG.random(self.N)
         # generate G(N, p) random graph
         G = nx.fast_gnp_random_graph(n=self.N, p=self.p, seed=self.seed_sequence, directed=False)
 
+        # random confidence bounds for each agent if providing list
+        if type(self.C) is list:
+            confidence_bound = self.C
+        else:
+            confidence_bound = [self.C] * self.N
+
         nodes = []
         for i in range(self.N):
             node_neighbors = list(G[i])
-            node = Node(id=i, initial_opinion=opinions[i], neighbors=node_neighbors)
+            node = Node(id=i, initial_opinion=opinions[i], neighbors=node_neighbors, confidence_bound=confidence_bound[i])
             nodes.append(node)
 
         edges = [(u, v) for u, v in G.edges()]
@@ -165,6 +174,10 @@ class Model:
         print(f'Model finished. \nConvergence time: {time}')
 
         self.convergence_time = time
+
+        # calculate assortativy after running model
+        self.end_assortativity = nx.degree_assortativity_coefficient(nx.Graph(self.edges))
+
         if not test: self.save_model()
 
     def get_edges(self, time: int = None) -> list:
@@ -191,6 +204,12 @@ class Model:
         edges = self.get_edges(time)
         G.add_edges_from(edges)
         return G
+
+    def get_opinions(self, time: int = None):
+        if time == None or time >= self.convergence_time:
+            return self.X_data.copy()
+        else:
+            return self.X_data[:time + 1, :]
 
     def save_model(self, filename=None):
         if self.full_time_series:
