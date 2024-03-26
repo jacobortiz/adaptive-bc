@@ -4,11 +4,11 @@ import numpy as np
 from numpy.random import SeedSequence
 
 # record data for baseline results
-def kwparams(C, beta, trial):
+def kwparams(N, C, beta, trial):
     params = {
         "trial" : trial,
         "max_steps" : 1000000,
-        "N" : 1000,
+        "N" : N,
         "p" : 0.1,
         "tolerance" : 1e-5,
         "alpha" : 0.1, # 0.5 is consensus parameter
@@ -29,14 +29,16 @@ def run_model(seed_sequence, model_params, filename=None):
     print(f'End assortativity: {model.end_assortativity}')
 
 if __name__ == '__main__':
-
     seed = 123456789
 
-    C = 1
+    N = 1000
+
+    confidence_interval = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
+    C = np.random.default_rng(seed=seed).choice(confidence_interval, N)
 
     # beta = 0.25
     beta = 1
     trial = 1
-    print(f'running with params: \n{kwparams(C, beta, trial)}')
+    # print(f'running with params: \n{kwparams(N, C, beta, trial)}')
 
-    run_model(seed_sequence=seed, model_params=kwparams(C, beta, trial), filename='m3-run')
+    # run_model(seed_sequence=seed, model_params=kwparams(N, C, beta, trial), filename='m3-run')

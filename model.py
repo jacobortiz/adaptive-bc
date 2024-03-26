@@ -142,11 +142,15 @@ class Model:
             # for each pair, update opinions in Model and Node
             X_new = self.X.copy()
             for u, w in node_pairs:
-                if abs(self.X[u] - self.X[w] <= self.C):
+                # assumptions here
+                # using confidence bound of the receiving agent
+                if abs(self.X[u] - self.X[w] <= self.C[u]):
                     X_new[u] = self.X[u] + self.alpha * (self.X[w] - self.X[u])
-                    X_new[w] = self.X[w] + self.alpha * (self.X[u] - self.X[w])
-
                     self.nodes[u].update_opinion(X_new[u])
+
+                # check other agent is withing their own bounds
+                if abs(self.X[w] - self.X[u] <= self.C[w]):
+                    X_new[w] = self.X[w] + self.alpha * (self.X[u] - self.X[w])
                     self.nodes[w].update_opinion(X_new[w])
 
             # update data
@@ -221,7 +225,7 @@ class Model:
         self.num_discordant_edges = np.trim_zeros(self.num_discordant_edges)
 
         if not filename:
-            C = f'{self.C:.2f}'.replace('.','')
+            # C = f'{self.C:.2f}'.replace('.','')
             beta = f'{self.beta:.2f}'.replace('.','')
             filename = f'data/C_{C}_beta_{beta}_trial_{self.trial}_spk_{self.spawn_key}.pbz2'
 
@@ -237,7 +241,7 @@ class Model:
         print(f'Edge creation probability: {self.p}')
         print(f'Convergence tolerance: {self.tolerance}')
         print(f'Convergence parameter: {self.alpha}')
-        print(f'Confidence bound: {self.C}')
+        # print(f'Confidence bounds: {self.C}')
         print(f'Rewiring threshold: {self.beta}')
         print(f'Edges to rewire at each time step, M: {self.M}')
         print(f'Node pairs to update opinions, K: {self.K}')

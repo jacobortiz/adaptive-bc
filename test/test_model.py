@@ -2,7 +2,6 @@ import networkx as nx
 from node import Node
 from model import Model
 import numpy as np
-# from numpy.random import RandomState, MT19937, SeedSequence
 import random
 import pytest
 from copy import deepcopy
@@ -15,14 +14,17 @@ seed = 123456789
 
 @pytest.fixture
 def model_params():
+    confidence_interval = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
+    N = 15
+    C = np.random.default_rng(seed=seed).choice(confidence_interval, N)
     params = {
         "trial" : 1,
         "max_steps" : 10000,
-        "N" : 15,
+        "N" : N,
         "p" : 0.1,
         "tolerance" : 1e-5,
         "alpha" : 0.1,
-        "C" : 0.3,
+        "C" : C,
         "beta" : 0.25,
         "M" : 1,
         "K" : 1,
@@ -42,7 +44,7 @@ def __equivalent_nodes(node_1: Node, node_2: Node):
 def test_model_params(seed_sequence: int, model_params: dict):
     model = Model(seed_sequence, **model_params)
     for k, v in model_params.items():
-        assert getattr(model, k) == v
+        assert np.all(getattr(model, k) == v)
 
 def test_initialize_system(seed_sequence: int, model_params: dict):
     RNG = np.random.default_rng(seed_sequence)
@@ -65,6 +67,8 @@ def test_initialize_system(seed_sequence: int, model_params: dict):
     # test nodes
     for i in range(len(nodes)):
         assert __equivalent_nodes(nodes[i], model.nodes[i])
+
+    assert np.all(model.C == model_params['C'])
 
 def test_rewire(seed_sequence: int, model_params: dict):
     model = Model(seed_sequence, **model_params)
@@ -106,8 +110,11 @@ def test_get_network(seed_sequence: int, model_params: dict):
 def test_get_opinions(seed_sequence: int, model_params: dict):
     model = Model(seed_sequence, **model_params)
     model.run(test=True)
+    CT = model.convergence_time
     assert np.all(model.get_opinions(time=0) == model.X_data[0, :])
-    assert np.all(model.get_opinions(time=1) == model.X_data[1, :])
+    assert np.all(model.get_opinions(time=1)[-1] == model.X_data[1, :])
+    assert np.all(model.get_opinions(time=CT-1)[-1] == model.X_data[CT-1, :])
+
 
 def test_compressed_pickle(seed_sequence: int, model_params: dict):
     RNG = np.random.default_rng(seed_sequence)
