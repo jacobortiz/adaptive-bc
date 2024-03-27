@@ -61,21 +61,21 @@ class Model:
         self.start_assortativity = nx.degree_assortativity_coefficient(nx.Graph(self.edges))
 
     def __initialize_network(self) -> None:
+
+        print('initializing network')
         # random initial opinions from [0, 1] uniformly
         opinions = self.RNG.random(self.N)
         # generate G(N, p) random graph
         G = nx.fast_gnp_random_graph(n=self.N, p=self.p, seed=self.seed_sequence, directed=False)
 
         # random confidence bounds for each agent if providing list
-        if type(self.C) is list:
-            confidence_bound = self.C
-        else:
-            confidence_bound = [self.C] * self.N
+        if type(self.C) is not list:
+            self.C = [self.C] * self.N
 
         nodes = []
         for i in range(self.N):
             node_neighbors = list(G[i])
-            node = Node(id=i, initial_opinion=opinions[i], neighbors=node_neighbors, confidence_bound=confidence_bound[i])
+            node = Node(id=i, initial_opinion=opinions[i], neighbors=node_neighbors, confidence_bound=self.C[i])
             nodes.append(node)
 
         edges = [(u, v) for u, v in G.edges()]

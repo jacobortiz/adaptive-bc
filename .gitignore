@@ -2,6 +2,8 @@
 .DS_Store
 *.pyc
 
+*.ps1
+
 # all ignore __pycache__ directories
 __pycache__/
 __pycache__/*
