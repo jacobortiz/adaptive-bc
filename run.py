@@ -15,7 +15,7 @@ def kwparams(N, C, beta, trial):
         "beta" : beta,
         "C" : C,
         "M" : 1,
-        "K" : 5,
+        "K" : 1,
         "full_time_series": True
     }
     return params
@@ -33,12 +33,12 @@ if __name__ == '__main__':
 
     N = 1000
 
-    confidence_interval = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
-    C = np.random.default_rng(seed=seed).choice(confidence_interval, N)
+    confidence_intervals = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
+    C = np.random.default_rng(seed=seed).choice(confidence_intervals, N)
 
     # beta = 0.25
     beta = 1
     trial = 1
-    # print(f'running with params: \n{kwparams(N, C, beta, trial)}')
 
-    # run_model(seed_sequence=seed, model_params=kwparams(N, C, beta, trial), filename='m3-run')
+    print('Running model...')
+    run_model(seed_sequence=seed, model_params=kwparams(N, C, beta, trial), filename='baseline-adaptive-bc-alpha_0.1')

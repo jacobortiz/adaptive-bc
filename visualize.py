@@ -8,9 +8,7 @@ import networkx as nx
 
 if __name__ == '__main__':
     # load the model
-    # file = 'baseline-dw-alpha_0.1'
-    file = 'm3-run'
-
+    file = 'baseline-adaptive-bc-alpha_0.1'
     loaded_model = bz2.BZ2File(f'data/{file}.pbz2', 'rb')
     loaded_model = pickle.load(loaded_model)
 
@@ -36,5 +34,5 @@ if __name__ == '__main__':
     plt.ylabel('Opinion')
     # plt.legend(['Nodes in Network'], bbox_to_anchor=(1.3, 1), loc='upper right')
     # plt.annotate(f'$confidence$ $\epsilon = {loaded_model.C}$', xy=(1.05,.8), xycoords='axes fraction', fontsize=12)
-    plt.title(f'Opinion Evolution: Baseline-DW, $𝛼={loaded_model.alpha}$')
+    plt.title(f'Opinion Evolution: Adaptive-BC, $𝛼={loaded_model.alpha}$')
     plt.show()

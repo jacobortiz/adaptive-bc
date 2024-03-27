@@ -227,7 +227,7 @@ class Model:
         if not filename:
             # C = f'{self.C:.2f}'.replace('.','')
             beta = f'{self.beta:.2f}'.replace('.','')
-            filename = f'data/C_{C}_beta_{beta}_trial_{self.trial}_spk_{self.spawn_key}.pbz2'
+            filename = f'data/adaptive-bc-beta_{beta}_trial_{self.trial}_spk_{self.spawn_key}.pbz2'
 
         print(f'saving model to {filename}')
         with bz2.BZ2File(filename, 'w') as f:
