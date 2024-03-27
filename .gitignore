@@ -1,3 +1,4 @@
+*.pbz2
 .DS_Store
 *.pyc
 
