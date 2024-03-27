@@ -7,11 +7,9 @@ import matplotlib.pyplot as plt
 import networkx as nx
 
 if __name__ == '__main__':
+
     # load the model
-    # file = 'baseline-adaptive-bc-alpha_0.1'
-    # file = 'baseline-adaptive-bc-confidence_1-beta_1'
-    # file = 'baseline-ABC-K_5-C_1-beta_1'
-    file = 'baseline-ABC-K_10-C_1-beta_1'
+    file = 'baseline-ABC-K_1-C_1-beta_1'
 
     loaded_model = bz2.BZ2File(f'data/{file}.pbz2', 'rb')
     loaded_model = pickle.load(loaded_model)
