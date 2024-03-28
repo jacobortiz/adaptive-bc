@@ -8,7 +8,7 @@ from numpy.random import SeedSequence
 def kwparams(N, C, beta, trial, K):
     params = {
         "trial" : trial,
-        "max_steps" : 1000000,
+        "max_steps" : 100000,
         "N" : N,
         "p" : 0.1,
         "tolerance" : 1e-5,
@@ -40,7 +40,6 @@ if __name__ == '__main__':
     # C = RNG.choice(confidence_intervals, N)
     C = 1
 
-    # beta = 0.25
     beta = 1
     trial = 1
 
@@ -54,7 +53,7 @@ if __name__ == '__main__':
     processes = []
     for K in K_list:
         print(f'testing K={K}...')
-        process = multiprocessing.Process(target=run_model, args=(seed, kwparams(N, C, beta, trial, K), f'baseline-ABC-K_{K}-C_1-beta_1'))
+        process = multiprocessing.Process(target=run_model, args=(seed, kwparams(N, C, beta, trial, K), f'baseline-ABC-K_{K}-C_1-beta_1-N_100k'))
         processes.append(process)
         process.start()
 

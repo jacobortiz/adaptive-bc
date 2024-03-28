@@ -61,15 +61,14 @@ class Model:
         self.start_assortativity = nx.degree_assortativity_coefficient(nx.Graph(self.edges))
 
     def __initialize_network(self) -> None:
-
-        print('initializing network')
+        print('initializing network...')
         # random initial opinions from [0, 1] uniformly
         opinions = self.RNG.random(self.N)
         # generate G(N, p) random graph
         G = nx.fast_gnp_random_graph(n=self.N, p=self.p, seed=self.seed_sequence, directed=False)
 
         # random confidence bounds for each agent if providing list
-        if type(self.C) is not list:
+        if type(self.C) is not np.ndarray:
             self.C = [self.C] * self.N
 
         nodes = []
@@ -225,7 +224,6 @@ class Model:
         self.num_discordant_edges = np.trim_zeros(self.num_discordant_edges)
 
         if not filename:
-            # C = f'{self.C:.2f}'.replace('.','')
             beta = f'{self.beta:.2f}'.replace('.','')
             filename = f'data/adaptive-bc-beta_{beta}_trial_{self.trial}_spk_{self.spawn_key}.pbz2'
 
@@ -234,9 +232,9 @@ class Model:
             pickle.dump(self, f)
 
     def info(self):
-        print(f'Seed sequeunce: {self.seed_sequence}')
+        print(f'Seed: {self.seed_sequence}')
         print(f'Trial number: {self.trial}')
-        print(f'Bailout time: {self.max_steps}')
+        print(f'Max time steps: {self.max_steps}')
         print(f'Number of nodes: {self.N}')
         print(f'Edge creation probability: {self.p}')
         print(f'Convergence tolerance: {self.tolerance}')
