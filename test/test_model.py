@@ -9,6 +9,8 @@ from copy import deepcopy
 import pickle
 import bz2
 
+import matplotlib.pyplot as plt
+
 # fix test seed
 seed = 123456789
 
@@ -16,7 +18,7 @@ seed = 123456789
 def model_params():
     confidence_interval = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
     N = 15
-    C = np.random.default_rng(seed=seed).choice(confidence_interval, N)
+    c = np.random.default_rng(seed=seed).choice(confidence_interval, N)
     params = {
         "trial" : 1,
         "max_steps" : 10000,
@@ -24,11 +26,13 @@ def model_params():
         "p" : 0.1,
         "tolerance" : 1e-5,
         "alpha" : 0.1,
-        "C" : C,
-        "beta" : 0.25,
+        "c" : c,
+        "beta" : .25,
         "M" : 1,
         "K" : 1,
-        "full_time_series": True
+        "full_time_series": True,
+        "gamma" : 0.1,
+        "delta": 0.9
     }
     return params
 
@@ -68,7 +72,7 @@ def test_initialize_system(seed_sequence: int, model_params: dict):
     for i in range(len(nodes)):
         assert __equivalent_nodes(nodes[i], model.nodes[i])
 
-    assert np.all(model.C == model_params['C'])
+    assert np.all(model.c == model_params['c'])
 
 def test_rewire(seed_sequence: int, model_params: dict):
     model = Model(seed_sequence, **model_params)
@@ -98,14 +102,20 @@ def test_dw_step(seed_sequence: int, model_params: dict):
     print(f'initial opinions: {model.X_data[0, :]}')
     print(f'final opinions: {model.X_data[CT - 1, :]}')
 
+def test_confidence_updates(seed_sequence: int, model_params: dict):
+    model = Model(seed_sequence, **model_params)
+    intial_confidence = model.c.copy()
+    model.run(test=True)
+    assert not np.array_equal(intial_confidence, model.c)
+    # add more tests...
+
 # assuming beta < 1 for this test, if its 1, then the test will fail
 def test_get_network(seed_sequence: int, model_params: dict):
     model = Model(seed_sequence, **model_params)
     model.run(test=True)
     assert list(model.get_network(time=0).edges) == model.initial_edges
 
-    # order is wrong, but edges are the same
-    # assert list(model.get_network(time=1).edges) == list(nx.Graph([(2, 6), (3, 4), (3, 5), (8, 14), (10, 11), (13, 14)]).edges)
+    # run last test
 
 def test_get_opinions(seed_sequence: int, model_params: dict):
     model = Model(seed_sequence, **model_params)

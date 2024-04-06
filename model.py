@@ -1,8 +1,8 @@
 import networkx as nx
 from node import Node
 import numpy as np
-# from numpy.random import RandomState, MT19937
 import random
+from random import shuffle
 
 import pickle
 import bz2
@@ -11,35 +11,29 @@ class Model:
     def __init__(self, seed_sequence, **kwparams) -> None:
         # set random state for model instance to ensure repeatability
         self.seed_sequence = seed_sequence
-        try:
-            self.spawn_key = seed_sequence.spawn_key[0]
-        except:
-            self.spawn_key = None
-
-        # each instance gets its own RNG
         self.RNG = np.random.default_rng(seed_sequence)
-        # set state of random module
         random.seed(seed_sequence)
-        # self.random_state = seed_sequence # RandomState(MT19937(seed_sequence)) or random_state???
 
         # set model params
         self.trial = kwparams['trial']                      # trial ID (for saving model)
         self.max_steps = kwparams['max_steps']              # bailout time
         self.N = kwparams['N']                              # number of nodes
-        self.p = kwparams['p']                              # p in G(N, p), probability of edge creation
+        self.p = kwparams['p']                              # probability of edge creation, p in G(N, p)
         self.tolerance = kwparams['tolerance']              # convergence tolerance
         self.alpha = kwparams['alpha']                      # convergence parameter
-        self.C = kwparams['C']                              # confidence bound
+        self.c = kwparams['c']                              # confidence bound
         self.beta = kwparams['beta']                        # rewiring threshold
         self.M = kwparams['M']                              # num of edges to rewire each step
         self.K = kwparams['K']                              # num of node pairs to update opinions at each step
         self.full_time_series = kwparams['full_time_series']       # save time series opinion data
+        self.gamma = kwparams['gamma']
+        self.delta = kwparams['delta']
 
         # generate network and set attributes:
         # opinions, initial_opinions, initial_edges, nodes, edges
         self.__initialize_network()
 
-        # X = opinion data
+        # X is opinion data
         if self.full_time_series:
             self.X_data = np.ndarray((self.max_steps, self.N))   # storing time series opinion data
             self.X_data[0, :] = self.X                           # record initial opinions
@@ -61,20 +55,21 @@ class Model:
         self.start_assortativity = nx.degree_assortativity_coefficient(nx.Graph(self.edges))
 
     def __initialize_network(self) -> None:
-        print('initializing network...')
+        print('===== initializing network =====')
+        print(f'seed: {self.seed_sequence}')
         # random initial opinions from [0, 1] uniformly
         opinions = self.RNG.random(self.N)
         # generate G(N, p) random graph
         G = nx.fast_gnp_random_graph(n=self.N, p=self.p, seed=self.seed_sequence, directed=False)
 
         # random confidence bounds for each agent if providing list
-        if type(self.C) is not np.ndarray:
-            self.C = [self.C] * self.N
+        if type(self.c) is not np.ndarray:
+            self.c = [self.c] * self.N
 
         nodes = []
         for i in range(self.N):
             node_neighbors = list(G[i])
-            node = Node(id=i, initial_opinion=opinions[i], neighbors=node_neighbors, confidence_bound=self.C[i])
+            node = Node(id=i, initial_opinion=opinions[i], neighbors=node_neighbors, confidence_bound=self.c[i])
             nodes.append(node)
 
         edges = [(u, v) for u, v in G.edges()]
@@ -85,28 +80,26 @@ class Model:
         self.initial_edges = edges.copy()
         self.nodes = nodes
 
+        self.sum_opinions = np.sum(opinions)
+
     # run the model
     def run(self, test=False) -> None:
         time = 0
 
-        def rewire():
+        def rewire_step():
             # get discordant edges
             discordant_edges = [(i, j) for i, j in self.edges if abs(self.X[i] - self.X[j]) > self.beta]
-
-            # if test and discordant_edges:
-            #     print(f'discordant edges: {discordant_edges}')
-
             self.num_discordant_edges[time] = len(discordant_edges)
 
-            # if len of discordant edges >= M, choose M at random using self.RNG
+            # if len of discordant edges >= M, choose M at random to rewire
             # else choose all discordant edges to rewire
             if len(discordant_edges) > self.M:
-                index = self.RNG.choice(a=len(discordant_edges), size=self.M, replace=False)
-                edges_to_cut = [discordant_edges[i] for i in index]
+                shuffle(discordant_edges)
+                edges_to_cut = discordant_edges[:self.M]
             else:
                 edges_to_cut = discordant_edges
 
-            # cut and connect new edges
+            # remove and make new connections
             for edge in edges_to_cut:
                 self.edges.remove(edge)
                 i, j = edge[0], edge[1]
@@ -114,8 +107,7 @@ class Model:
                 self.nodes[j].erase_neighbor(i)
 
                 # pick either i or j to rewire
-                random_node = self.RNG.integers(2)
-                i = i if random_node == 0 else j
+                i = random.choice([i, j])
                 selected_node = self.nodes[i]
                 new_neighbor = selected_node.rewire(self.X, self.RNG)
                 self.nodes[new_neighbor].add_neighbor(i)
@@ -143,14 +135,24 @@ class Model:
             for u, w in node_pairs:
                 # assumptions here
                 # using confidence bound of the receiving agent
-                if abs(self.X[u] - self.X[w] <= self.C[u]):
+                if abs(self.X[u] - self.X[w] <= self.c[u]):
+                    # update opinions
                     X_new[u] = self.X[u] + self.alpha * (self.X[w] - self.X[u])
                     self.nodes[u].update_opinion(X_new[u])
+                    # update confidence
+                    self.c[u] = self.c[u] + self.gamma * (1 - self.c[u])
+                else:
+                    # update confidence using repulsion parameter, delta
+                    self.c[u] = self.delta * self.c[u]
 
                 # check other agent is withing their own bounds
-                if abs(self.X[w] - self.X[u] <= self.C[w]):
+                if abs(self.X[w] - self.X[u] <= self.c[w]):
                     X_new[w] = self.X[w] + self.alpha * (self.X[u] - self.X[w])
                     self.nodes[w].update_opinion(X_new[w])
+                    self.c[w] = self.c[w] + self.gamma * (1 - self.c[w])
+                else:
+                    # update confidence using repulsion parameter, delta
+                    self.c[w] = self.delta * self.c[w]
 
             # update data
             self.X_prev = self.X.copy()
@@ -169,7 +171,7 @@ class Model:
 
         # run model
         while time < self.max_steps - 1 and self.stationary_flag != 1:
-            if self.rewiring: rewire()
+            if self.rewiring: rewire_step()
             dw_step()
             check_convergence()
             time += 1
@@ -199,7 +201,6 @@ class Model:
 
             return edges
 
-
     def get_network(self, time: int = None) -> nx.Graph:
         G = nx.Graph()
         G.add_nodes_from(range(self.N))
@@ -224,14 +225,14 @@ class Model:
         self.num_discordant_edges = np.trim_zeros(self.num_discordant_edges)
 
         if not filename:
-            beta = f'{self.beta:.2f}'.replace('.','')
-            filename = f'data/adaptive-bc-beta_{beta}_trial_{self.trial}_spk_{self.spawn_key}.pbz2'
+            filename='data/test.pbz2'
 
         print(f'saving model to {filename}')
         with bz2.BZ2File(filename, 'w') as f:
             pickle.dump(self, f)
 
     def info(self):
+        print("===== Model parameters =====")
         print(f'Seed: {self.seed_sequence}')
         print(f'Trial number: {self.trial}')
         print(f'Max time steps: {self.max_steps}')
@@ -239,7 +240,6 @@ class Model:
         print(f'Edge creation probability: {self.p}')
         print(f'Convergence tolerance: {self.tolerance}')
         print(f'Convergence parameter: {self.alpha}')
-        # print(f'Confidence bounds: {self.C}')
         print(f'Rewiring threshold: {self.beta}')
         print(f'Edges to rewire at each time step, M: {self.M}')
         print(f'Node pairs to update opinions, K: {self.K}')
