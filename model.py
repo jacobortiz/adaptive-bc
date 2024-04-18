@@ -8,7 +8,7 @@ import pickle
 import bz2
 
 class Model:
-    def __init__(self, seed_sequence, **kwparams) -> None:
+    def __init__(self, seed_sequence, G=None, **kwparams) -> None:
         # set random state for model instance to ensure repeatability
         self.seed_sequence = seed_sequence
         self.RNG = np.random.default_rng(seed_sequence)
@@ -16,22 +16,22 @@ class Model:
 
         # set model params
         self.trial = kwparams['trial']                      # trial ID (for saving model)
-        self.max_steps = kwparams['max_steps']              # bailout time
-        self.N = kwparams['N']                              # number of nodes
-        self.p = kwparams['p']                              # probability of edge creation, p in G(N, p)
-        self.tolerance = kwparams['tolerance']              # convergence tolerance
-        self.alpha = kwparams['alpha']                      # convergence parameter
-        self.c = kwparams['c']                              # confidence bound
+        self.max_steps = kwparams['max_steps']              # max time steps model runs
+        if not G: self.N = kwparams['N']                    # number of nodes
+        if not G: self.p = kwparams['p']                              # probability of edge creation, p in G(N, p)
+        self.tolerance = kwparams['tolerance']              # convergence tolerance (1-e^5)
+        self.alpha = kwparams['alpha']                      # convergence parameter (0.1)
+        self.c = kwparams['c']                              # confidence bound 
         self.beta = kwparams['beta']                        # rewiring threshold
         self.M = kwparams['M']                              # num of edges to rewire each step
         self.K = kwparams['K']                              # num of node pairs to update opinions at each step
         self.full_time_series = kwparams['full_time_series']       # save time series opinion data
-        self.gamma = kwparams['gamma']
-        self.delta = kwparams['delta']
+        self.gamma = kwparams['gamma']                      # confidence attraction parameter
+        self.delta = kwparams['delta']                      # confidence repulsion parameter
 
         # generate network and set attributes:
         # opinions, initial_opinions, initial_edges, nodes, edges
-        self.__initialize_network()
+        self.__initialize_network(G)
 
         # X is opinion data
         if self.full_time_series:
@@ -52,15 +52,22 @@ class Model:
         self.rewiring = False if int(kwparams['beta'] == 1) else True
 
         # before running model, calculate network assortativity
-        self.start_assortativity = nx.degree_assortativity_coefficient(nx.Graph(self.edges))
+        self.start_assortativity = nx.degree_assortativity_coefficient(nx.Graph(self.edges.copy()))
 
-    def __initialize_network(self) -> None:
-        print('===== initializing network =====')
-        print(f'seed: {self.seed_sequence}')
+    def __initialize_network(self, G: nx.Graph) -> None:
+        # generate G(N, p) random graph
+        if G:
+            print(f'===== Running on {G.name} =====')
+            self.N = G.number_of_nodes()
+            self.original_graph = G.copy()
+            self.graph_type = G.name
+        else:
+            print('===== initializing network =====')
+            G = nx.fast_gnp_random_graph(n=self.N, p=self.p, seed=self.seed_sequence, directed=False)
+            self.graph_type = 'random Erdős–Rényi graph'
+
         # random initial opinions from [0, 1] uniformly
         opinions = self.RNG.random(self.N)
-        # generate G(N, p) random graph
-        G = nx.fast_gnp_random_graph(n=self.N, p=self.p, seed=self.seed_sequence, directed=False)
 
         # random confidence bounds for each agent if providing list
         if type(self.c) is not np.ndarray:
@@ -85,7 +92,6 @@ class Model:
     # run the model
     def run(self, test=False) -> None:
         time = 0
-
         def rewire_step():
             # get discordant edges
             discordant_edges = [(i, j) for i, j in self.edges if abs(self.X[i] - self.X[j]) > self.beta]
@@ -122,11 +128,12 @@ class Model:
             if self.full_time_series == False and time % 250 == 0:
                 G = nx.Graph()
                 G.add_nodes_from(range(self.N))
-                G.add_edges_from(self.edges)
+                G.add_edges_from(self.edges.copy())
                 self.G_snapshots.append((time, G))
 
-        # update opinions using deffuant-weisbuch
+        # update opinions using DW
         def dw_step():
+            # choose K edges for nodes to update opinions
             index = self.RNG.integers(low=0, high=len(self.edges), size=self.K)
             node_pairs = [self.edges[i] for i in index]
 
@@ -135,7 +142,7 @@ class Model:
             for u, w in node_pairs:
                 # assumptions here
                 # using confidence bound of the receiving agent
-                if abs(self.X[u] - self.X[w] <= self.c[u]):
+                if abs(self.X[u] - self.X[w] < self.c[u]):
                     # update opinions
                     X_new[u] = self.X[u] + self.alpha * (self.X[w] - self.X[u])
                     self.nodes[u].update_opinion(X_new[u])
@@ -146,7 +153,7 @@ class Model:
                     self.c[u] = self.delta * self.c[u]
 
                 # check other agent is withing their own bounds
-                if abs(self.X[w] - self.X[u] <= self.c[w]):
+                if abs(self.X[w] - self.X[u] < self.c[w]):
                     X_new[w] = self.X[w] + self.alpha * (self.X[u] - self.X[w])
                     self.nodes[w].update_opinion(X_new[w])
                     self.c[w] = self.c[w] + self.gamma * (1 - self.c[w])
@@ -158,12 +165,14 @@ class Model:
             self.X_prev = self.X.copy()
             self.X = X_new
 
+            # update data in time series
             if self.full_time_series:
                 self.X_data[time + 1, :] = X_new
             elif (time % 250 == 0):
+                # only update every 250 time steps
                 t_prime = int(time / 250)
                 self.X_data[t_prime + 1] = X_new
-
+    
         def check_convergence():
             state_change = np.sum(np.abs(self.X - self.X_prev))
             self.stationary_counter = self.stationary_counter + 1 if state_change < self.tolerance else 0
@@ -175,13 +184,20 @@ class Model:
             dw_step()
             check_convergence()
             time += 1
+        
+        # add last snapshot
+        if self.full_time_series is False:  
+            G = nx.Graph()
+            G.add_nodes_from(range(self.N))
+            G.add_edges_from(self.edges)
+            self.G_snapshots.append((time, G))
 
         print(f'Model finished. \nConvergence time: {time}')
 
         self.convergence_time = time
 
         # calculate assortativy after running model
-        self.end_assortativity = nx.degree_assortativity_coefficient(nx.Graph(self.edges))
+        self.end_assortativity = nx.degree_assortativity_coefficient(nx.Graph(self.edges.copy()))
 
         if not test: self.save_model()
 
@@ -209,11 +225,14 @@ class Model:
         G.add_edges_from(edges)
         return G
 
-    def get_opinions(self, time: int = None):
+    def get_opinions(self, time: int = None) -> np.ndarray:
         if time == None or time >= self.convergence_time:
             return self.X_data.copy()
         else:
             return self.X_data[:time + 1, :]
+        
+    def print_graph(self):
+        pass
 
     def save_model(self, filename=None):
         if self.full_time_series:
@@ -231,8 +250,8 @@ class Model:
         with bz2.BZ2File(filename, 'w') as f:
             pickle.dump(self, f)
 
-    def info(self):
-        print("===== Model parameters =====")
+    def info(self) -> None:
+        print('===== Model parameters =====')
         print(f'Seed: {self.seed_sequence}')
         print(f'Trial number: {self.trial}')
         print(f'Max time steps: {self.max_steps}')
@@ -244,3 +263,7 @@ class Model:
         print(f'Edges to rewire at each time step, M: {self.M}')
         print(f'Node pairs to update opinions, K: {self.K}')
         print(f'Save opinion time series: {self.full_time_series}')
+
+    def OM_algorithms():
+        # TODO: add algorithms
+        pass

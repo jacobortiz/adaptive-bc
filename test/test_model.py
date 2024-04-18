@@ -37,6 +37,24 @@ def model_params():
     return params
 
 @pytest.fixture
+def graph_input_model_params():
+    params = {
+        "trial" : 1,
+        "max_steps" : 100000,
+        "p" : 0.1,
+        "tolerance" : 1e-5,
+        "alpha" : 0.1,
+        "c" : .3,
+        "beta" : .25,
+        "M" : 1,
+        "K" : 1,
+        "full_time_series": True,
+        "gamma" : 0.1,
+        "delta": 0.9
+    }
+    return params
+
+@pytest.fixture
 def seed_sequence():
     return seed
 
@@ -125,6 +143,32 @@ def test_get_opinions(seed_sequence: int, model_params: dict):
     assert np.all(model.get_opinions(time=1)[-1] == model.X_data[1, :])
     assert np.all(model.get_opinions(time=CT-1)[-1] == model.X_data[CT-1, :])
 
+def test_graph_input(seed_sequence: int, model_params: dict, graph_input_model_params: dict):
+    model = Model(seed_sequence, **model_params)
+    assert model.graph_type == 'random Erdős–Rényi graph'
+
+    # input graph
+    G = nx.karate_club_graph()
+    model = Model(seed_sequence, G, **graph_input_model_params)
+    assert model.graph_type == "Zachary's Karate Club"
+    assert G.number_of_nodes() == model.N
+
+    # visualize the graph
+    # plt.figure(figsize=(8, 6))
+    # pos = nx.spring_layout(G, seed=seed_sequence)
+    # nx.draw(G, pos=pos, with_labels=True)
+    # plt.show()
+
+    model.run(test=True)
+    G2 = nx.Graph()
+    G2.add_edges_from(model.edges)
+
+    # plt.figure(figsize=(8, 6))
+    # pos = nx.spring_layout(G2, seed=seed_sequence)
+    # nx.draw(G2, pos=pos, with_labels=True)
+    # plt.show()
+
+    assert G.edges != G2.edges
 
 def test_compressed_pickle(seed_sequence: int, model_params: dict):
     RNG = np.random.default_rng(seed_sequence)
