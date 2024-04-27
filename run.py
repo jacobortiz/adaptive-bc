@@ -19,7 +19,7 @@ def kwparams(N, c, beta, trial, K):
         "c" : c,
         "M" : 1,
         "K" : K,
-        "full_time_series": False,
+        "full_time_series": True,
         "gamma": .1,     # 0 is DW
         "delta": .9,     # 1 is DW
     }
@@ -159,8 +159,6 @@ if __name__ == '__main__':
 
     RNG = np.random.default_rng(seed=seed)
     c = np.round(RNG.uniform(0.1, 1, G.number_of_nodes()), decimals=1)
-
-    print(c)
     
     # run abc model on network
     params = {
@@ -177,47 +175,81 @@ if __name__ == '__main__':
         "delta": 0.9
     }
 
-    model = Model(seed_sequence=seed, G=G, **params)
+    # TODO: look at edge changes, and graph them for report on karate club network
 
-    # for node in G.nodes():
-    #     print(node, model.initial_X[node]) 
-    pos = nx.spring_layout(G, seed=seed)
-
-
-    # Plot the network with initial opinions as node color
-    plt.figure(figsize=(12, 8))
-    # fig, ax = plt.subplots()
-
-    cmap = plt.cm.Blues
-    colors = [model.initial_X[node] for node in list(G.nodes())]
-    # plt.title('Network with Initial Opinions')
-    nx.draw(G, pos=pos, node_color=colors, cmap=cmap, with_labels=True, edge_color='gray')
-
-    # Add colorbar
-    sm = plt.cm.ScalarMappable(cmap=cmap)
-    sm.set_array(colors)
-    cbar = plt.colorbar(
-        sm, ax=plt.gca(), 
-        shrink=0.65
-    )
-    plt.axis('off')
-    plt.show()
-
+    # model = Model(seed_sequence=seed, **params)
+    model = Model(seed_sequence=seed, **kwparams(10, 0.3, 0.25, 1, 1))
     model.run(test=True)
 
-    # if model.full_time_series:
-    #     model.X_data = model.X_data[:model.convergence_time, :]
+    # model.print_graph(time=0, opinions=False)
+
+    for i in range(0, model.convergence_time, 10):
+        model.print_graph(time=i, opinions=True)
+
+    # for node in G.nodes():
+    #     print(node, model.initial_X[node])
+     
+    # pos = nx.spring_layout(G, seed=seed)
+    # cmap = plt.cm.Blues
+    # colors = [model.initial_X[node] for node in list(G.nodes())]
+    # plt.title('Network with Initial Opinions')
+    # nx.draw(G, pos=pos, node_color=colors, cmap=cmap, with_labels=True, edge_color='gray')
+
+    # Add colorbar
+    # sm = plt.cm.ScalarMappable(cmap=cmap)
+    # sm.set_array(colors)
+    # cbar = plt.colorbar(
+    #     sm, ax=plt.gca(), 
+    #     shrink=0.65
+    # )
+    # plt.axis('off')
+    # plt.show()
+
+    # model.run(test=True)
+    # model.X_data = model.X_data[:model.convergence_time, :]
+
+    # pos = nx.spring_layout(H, seed=seed)
+    # nx.draw(H, pos=pos, with_labels=True)
+    # plt.show()
+    # H = G.copy()
+    # nx.set_edge_attributes(H, {(edge[0], edge[1]): {'color': 'gray'} for edge in H.edges})
+    # # edge_colors = [H[u][v]['color'] for u, v in H.edges()]
+
+    # for (t, old, new) in model.edge_changes:
+    #     colors = [model.X_data[t][node] for node in list(H.nodes())]
+    #     cmap = plt.cm.Blues
+    #     plt.figure(figsize=(12, 8))
+    #     plt.title(f'Karate Club network time: {t}')
+    #     pos = nx.spring_layout(H, seed=seed)
+    #     nx.draw(H, pos=pos, with_labels=True, edge_color='gray', cmap=cmap, node_color=colors)
+    #     # Add colorbar
+    #     sm = plt.cm.ScalarMappable(cmap=cmap)
+    #     sm.set_array(colors)
+    #     cbar = plt.colorbar(
+    #         sm, ax=plt.gca(), 
+    #         shrink=0.65
+    #     )
+    #     plt.axis('off')
+
+    #     plt.show()
+    #     H.remove_edge(*old)
+    #     H.add_edge(*new)
+
     # else:
-    #     model.X_data = model.X_data[:int(model.convergence_time / 250) + 1, :]
+    # model.X_data = model.X_data[:int(model.convergence_time / 250) + 1, :]
 
     # model.num_discordant_edges = model.num_discordant_edges[:model.convergence_time - 1]
     # model.num_discordant_edges = np.trim_zeros(model.num_discordant_edges)
 
+    # for time, g in model.G_snapshots:
+    #     colors = [model.X_data[time][node] for node in list(g.nodes())]
+    #     plt.figure(figsize=(12, 8))
+    #     pos = nx.spring_layout(g, seed=seed)
+    #     nx.draw(g, pos=pos, node_colors=colors, with_labels=True)
+    #     plt.show()
 
-    # rewired_G = model.get_network()
     # pos = nx.spring_layout(rewired_G, seed=seed)
     # plt.figure(figsize=(12, 8))
-    # colors = [model.X_data[-1][node] for node in list(rewired_G.nodes())]
     # # # plt.title(G.name)
     # nx.draw(rewired_G, pos=pos, node_color=colors, cmap=cmap, with_labels=True, edge_color='gray')
 

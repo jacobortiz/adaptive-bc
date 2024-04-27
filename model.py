@@ -4,6 +4,8 @@ import numpy as np
 import random
 from random import shuffle
 
+import matplotlib.pyplot as plt
+
 import pickle
 import bz2
 
@@ -65,6 +67,7 @@ class Model:
             print('===== initializing network =====')
             G = nx.fast_gnp_random_graph(n=self.N, p=self.p, seed=self.seed_sequence, directed=False)
             self.graph_type = 'random Erdős–Rényi graph'
+            self.original_graph = G.copy()
 
         # random initial opinions from [0, 1] uniformly
         opinions = self.RNG.random(self.N)
@@ -198,6 +201,8 @@ class Model:
 
         # calculate assortativy after running model
         self.end_assortativity = nx.degree_assortativity_coefficient(nx.Graph(self.edges.copy()))
+        
+        self.X_data = self.X_data[:time, :]
 
         if not test: self.save_model()
 
@@ -208,7 +213,7 @@ class Model:
             return self.initial_edges.copy()
         else:
             edges = self.initial_edges.copy()
-            # find all edge changes up until highest t, where t < time
+            # find all edge changes up until t < time
             edge_changes = [(t, e1, e2) for (t, e1, e2) in self.edge_changes if t < time]
             # iteratively make changes to network
             for (_, old_edge, new_edge) in edge_changes:
@@ -218,6 +223,9 @@ class Model:
             return edges
 
     def get_network(self, time: int = None) -> nx.Graph:
+        if time == 0:
+            return self.original_graph
+        
         G = nx.Graph()
         G.add_nodes_from(range(self.N))
 
@@ -231,8 +239,38 @@ class Model:
         else:
             return self.X_data[:time + 1, :]
         
-    def print_graph(self):
-        pass
+    def print_graph(self, time: int = None, opinions: bool = False) -> None:
+        G = self.get_network(time)
+
+        # print last time step if not providing time
+        if time is None:
+            time = -1
+
+        labels = False
+        cmap = None if not opinions else plt.cm.Blues
+        colors = 'skyblue' if not opinions else [self.X_data[time][node] for node in list(G.nodes())]
+
+        print(f'{time}: {self.X_data[time]}')
+
+        if G.number_of_nodes() < 100:
+            labels=True
+
+        plt.figure(figsize=(12, 8))
+        pos = nx.spring_layout(G, seed=self.seed_sequence)
+        nx.draw(G, pos=pos, node_color=colors, edge_color='gray', cmap=cmap, with_labels=labels)
+
+        # move opinion colors here
+        if opinions:
+            sm = plt.cm.ScalarMappable(cmap=cmap)
+            sm.set_array(colors)
+            cbar = plt.colorbar(
+                sm, ax=plt.gca(), 
+                shrink=0.65
+            )
+            plt.axis('off')
+
+        plt.show()
+        
 
     def save_model(self, filename=None):
         if self.full_time_series:
