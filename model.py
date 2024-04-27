@@ -247,17 +247,21 @@ class Model:
             time = -1
 
         labels = False
-        cmap = None if not opinions else plt.cm.Blues
+        width = 1
+        cmap = None if not opinions else plt.cm.get_cmap('viridis')
         colors = 'skyblue' if not opinions else [self.X_data[time][node] for node in list(G.nodes())]
 
-        print(f'{time}: {self.X_data[time]}')
+        # print(f'{time}: {self.X_data[time]}')
 
         if G.number_of_nodes() < 100:
             labels=True
 
+        elif G.number_of_edges() > 500:
+            width = 0.1
+
         plt.figure(figsize=(12, 8))
-        pos = nx.spring_layout(G, seed=self.seed_sequence)
-        nx.draw(G, pos=pos, node_color=colors, edge_color='gray', cmap=cmap, with_labels=labels)
+        pos = nx.spring_layout(G, seed=self.seed_sequence, k=.25)
+        nx.draw(G, pos=pos, node_color=colors, node_size=50, edge_color='gray', width=width, cmap=cmap, with_labels=labels, node_shape='o')
 
         # move opinion colors here
         if opinions:
