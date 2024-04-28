@@ -14,7 +14,7 @@ def kwparams(N, c, beta, trial, K):
         "N" : N,
         "p" : 0.1,
         "tolerance" : 1e-5,
-        "alpha" : 0.1,
+        "mu" : 0.1,
         "beta" : beta,
         "c" : c,
         "M" : 1,
@@ -32,7 +32,7 @@ def baseline_params(N):
         "N" : N,
         "p" : 0.1,
         "tolerance" : 1e-5,
-        "alpha" : 0.1,
+        "mu" : 0.1,
         "beta" : 1,
         "c" : 0.3,
         "M" : 1,
@@ -158,18 +158,18 @@ if __name__ == '__main__':
     G = nx.karate_club_graph()
 
     RNG = np.random.default_rng(seed=seed)
-    c = np.round(RNG.uniform(0.1, 1, G.number_of_nodes()), decimals=1)
+    # c = np.round(RNG.uniform(0.1, 1, G.number_of_nodes()), decimals=1)
     
     # run abc model on network
     params = {
         "trial" : 1,
         "max_steps" : 100000,
         "tolerance" : 1e-5,
-        "alpha" : 0.1,
-        "c" : c,
+        "mu" : 0.1,
+        "c" : .3,
         "beta" : .25,
         "M" : 1,
-        "K" : 1,
+        "K" : 5,
         "full_time_series": True,
         "gamma" : 0.1,
         "delta": 0.9
@@ -177,14 +177,21 @@ if __name__ == '__main__':
 
     # TODO: look at edge changes, and graph them for report on karate club network
 
-    # model = Model(seed_sequence=seed, **params)
-    model = Model(seed_sequence=seed, **kwparams(10, 0.3, 0.25, 1, 1))
+    model = Model(seed_sequence=seed, G=G, **params)
+    # model = Model(seed_sequence=seed, **kwparams(10, 0.3, 0.25, 1, 1))
     model.run(test=True)
 
-    # model.print_graph(time=0, opinions=False)
+    # print(model.edge_changes)
 
-    for i in range(0, model.convergence_time, 10):
-        model.print_graph(time=i, opinions=True)
+    model.print_graph(time=0, opinions=True)
+    model.print_graph(time=model.convergence_time // 2, opinions=True)
+    model.print_graph(opinions=True)
+
+    print(model.initial_c)
+    print(model.c)
+
+    # for i in range(0, model.convergence_time, 10):
+    #     model.print_graph(time=i, opinions=True)
 
     # for node in G.nodes():
     #     print(node, model.initial_X[node])

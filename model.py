@@ -22,8 +22,8 @@ class Model:
         if not G: self.N = kwparams['N']                    # number of nodes
         if not G: self.p = kwparams['p']                              # probability of edge creation, p in G(N, p)
         self.tolerance = kwparams['tolerance']              # convergence tolerance (1-e^5)
-        self.alpha = kwparams['alpha']                      # convergence parameter (0.1)
-        self.c = kwparams['c']                              # confidence bound 
+        self.mu = kwparams['mu']                      # convergence parameter (0.1)
+        self.c = kwparams['c']                              # confidence bound
         self.beta = kwparams['beta']                        # rewiring threshold
         self.M = kwparams['M']                              # num of edges to rewire each step
         self.K = kwparams['K']                              # num of node pairs to update opinions at each step
@@ -57,6 +57,8 @@ class Model:
         self.start_assortativity = nx.degree_assortativity_coefficient(nx.Graph(self.edges.copy()))
 
     def __initialize_network(self, G: nx.Graph) -> None:
+
+
         # generate G(N, p) random graph
         if G:
             print(f'===== Running on {G.name} =====')
@@ -76,6 +78,8 @@ class Model:
         if type(self.c) is not np.ndarray:
             self.c = [self.c] * self.N
 
+        self.initial_c = self.c.copy()
+        
         nodes = []
         for i in range(self.N):
             node_neighbors = list(G[i])
@@ -147,7 +151,7 @@ class Model:
                 # using confidence bound of the receiving agent
                 if abs(self.X[u] - self.X[w] < self.c[u]):
                     # update opinions
-                    X_new[u] = self.X[u] + self.alpha * (self.X[w] - self.X[u])
+                    X_new[u] = self.X[u] + self.mu * (self.X[w] - self.X[u])
                     self.nodes[u].update_opinion(X_new[u])
                     # update confidence
                     self.c[u] = self.c[u] + self.gamma * (1 - self.c[u])
@@ -157,7 +161,7 @@ class Model:
 
                 # check other agent is withing their own bounds
                 if abs(self.X[w] - self.X[u] < self.c[w]):
-                    X_new[w] = self.X[w] + self.alpha * (self.X[u] - self.X[w])
+                    X_new[w] = self.X[w] + self.mu * (self.X[u] - self.X[w])
                     self.nodes[w].update_opinion(X_new[w])
                     self.c[w] = self.c[w] + self.gamma * (1 - self.c[w])
                 else:
@@ -252,16 +256,18 @@ class Model:
         colors = 'skyblue' if not opinions else [self.X_data[time][node] for node in list(G.nodes())]
 
         # print(f'{time}: {self.X_data[time]}')
+        node_size = 300
 
         if G.number_of_nodes() < 100:
             labels=True
 
         elif G.number_of_edges() > 500:
             width = 0.1
+            node_size = 50
 
         plt.figure(figsize=(12, 8))
         pos = nx.spring_layout(G, seed=self.seed_sequence, k=.25)
-        nx.draw(G, pos=pos, node_color=colors, node_size=50, edge_color='gray', width=width, cmap=cmap, with_labels=labels, node_shape='o')
+        nx.draw(G, pos=pos, node_color=colors, node_size=node_size, edge_color='gray', width=width, cmap=cmap, with_labels=labels, node_shape='o')
 
         # move opinion colors here
         if opinions:
@@ -300,7 +306,7 @@ class Model:
         print(f'Number of nodes: {self.N}')
         print(f'Edge creation probability: {self.p}')
         print(f'Convergence tolerance: {self.tolerance}')
-        print(f'Convergence parameter: {self.alpha}')
+        print(f'Convergence parameter: {self.mu}')
         print(f'Rewiring threshold: {self.beta}')
         print(f'Edges to rewire at each time step, M: {self.M}')
         print(f'Node pairs to update opinions, K: {self.K}')
