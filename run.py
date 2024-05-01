@@ -292,6 +292,8 @@ def baselines_karate():
     model = bz2.BZ2File(f'data/baseline/{filename}', 'rb')
     model = pickle.load(model)
 
+    print(len(model.edges))
+
     font = FontProperties()
     font.set_family('serif')
     font.set_name('Times New Roman')

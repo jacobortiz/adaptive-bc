@@ -11,6 +11,9 @@ import bz2
 
 import seaborn as sns
 
+SEED = 51399
+RNG = np.random.default_rng(seed=SEED)
+
 # record data for baseline results
 def kwparams(N, c, beta, trial, K):
     params = {
@@ -30,7 +33,22 @@ def kwparams(N, c, beta, trial, K):
     }
     return params
 
+def ER_random():
+    N = 1000
+    K = 1
+
+    for i in range(10):
+        c = np.round(RNG.uniform(0.1, 1, N), decimals=1)
+        model = Model(seed_sequence=SEED+i, **kwparams(N, c, .3, 1, K))
+        print(f'seed: {model.seed_sequence}, edges: {len(model.edges)}')
+
+
+
 if __name__ == '__main__':
+
+    ER_random()
+    exit()
+
     seed = 51399
     N = 1000
     trial = 1
@@ -40,7 +58,7 @@ if __name__ == '__main__':
     RNG = np.random.default_rng(seed=seed)
     c = np.round(RNG.uniform(0.1, 1, N), decimals=1)
 
-    filename = f'Erdős–Rényi_N-{N}_trial_1.pbz2'
+    # filename = f'Erdős–Rényi_N-{N}_trial_1.pbz2'
 
     # # model = Model(seed_sequence=seed, **kwparams(N, c, beta, 1, K), )
     # # model.run(test=True)
@@ -49,27 +67,26 @@ if __name__ == '__main__':
     # print(model.initial_c)
     # print(model.c)
 
-    print(f'loading {filename} ...')
-    loaded_model = bz2.BZ2File(filename, 'rb')
-    loaded_model = pickle.load(loaded_model)
-    print('done.')
+    # print(f'loading {filename} ...')
+    # loaded_model = bz2.BZ2File(filename, 'rb')
+    # loaded_model = pickle.load(loaded_model)
+    # print('done.')
 
-    print(f'convergence time: {loaded_model.convergence_time}')
-
-    print(len(set(loaded_model.c)))
+    # print(f'convergence time: {loaded_model.convergence_time}')
+    
+    # print(len(loaded_model.edges))
 
     # sns.histplot(data=loaded_model.initial_c, x='c')
     # plt.show()
 
-    print(loaded_model.c)
+    # print(loaded_model.c)
 
-    width = 10
-    data = np.round(loaded_model.c, decimals=5) # loaded_model.c
-    plt.hist(data, bins=10, color='#607c8e', rwidth=0.9, density=True) 
-    plt.xlabel('$\it{c}$')
-    plt.ylabel('Frequency')
-    # plt.title('Histogram of Initial c')
-    plt.show()
+    # width = 10
+    # data = np.round(loaded_model.c, decimals=5) # loaded_model.c
+    # plt.hist(data, bins=10, color='#607c8e', rwidth=0.9, density=True) 
+    # plt.xlabel('$\it{c}$')
+    # plt.ylabel('Frequency')
+    # plt.show()
 
     # print(loaded_model.c)
     
