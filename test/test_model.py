@@ -30,7 +30,6 @@ def model_params():
         "beta" : .25,
         "M" : 1,
         "K" : 1,
-        "full_time_series": True,
         "gamma" : 0.1,
         "delta": 0.9
     }
@@ -48,7 +47,6 @@ def graph_input_model_params():
         "beta" : .25,
         "M" : 1,
         "K" : 1,
-        "full_time_series": True,
         "gamma" : 0.1,
         "delta": 0.9
     }
@@ -220,3 +218,14 @@ def test_save_model(seed_sequence: int, model_params: dict):
 
     for i in range(len(model.nodes)):
         assert __equivalent_nodes(model.nodes[i], loaded_model.nodes[i])
+
+def test_om(seed_sequence: int, graph_input_model_params: dict):
+    # input graph
+    G = nx.karate_club_graph()
+    model = Model(seed_sequence, G, **graph_input_model_params)
+    assert model.graph_type == "Zachary's Karate Club"
+    assert G.number_of_nodes() == model.N
+
+    node = model.min_opinion_solution(1)
+    assert model.X[node[0][0]] == min(model.X)
+

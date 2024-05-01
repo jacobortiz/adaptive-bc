@@ -4,9 +4,13 @@ import numpy as np
 from multiprocessing import Pool
 
 import matplotlib.pyplot as plt
+from matplotlib.font_manager import FontProperties
+
 import networkx as nx
 
-# record data for baseline results
+import pickle
+import bz2
+
 def kwparams(N, c, beta, trial, K):
     params = {
         "trial" : "ABC",
@@ -19,7 +23,6 @@ def kwparams(N, c, beta, trial, K):
         "c" : c,
         "M" : 1,
         "K" : K,
-        "full_time_series": True,
         "gamma": .1,     # 0 is DW
         "delta": .9,     # 1 is DW
     }
@@ -37,7 +40,6 @@ def baseline_params(N):
         "c" : 0.3,
         "M" : 1,
         "K" : 5,
-        "full_time_series": True,
         "gamma": 0,     # 0 is DW
         "delta": 1,     # 1 is DW
     }
@@ -106,8 +108,217 @@ def run_multi_baseline_dw(c=None):
     plt.title('Percentage Increase in Opinions')
     plt.show()
 
+def run_om(k: int, type: str):
+    seed = 51399
+    params = {
+        "trial" : 1,
+        "max_steps" : 100000,
+        "tolerance" : 1e-5,
+        "mu" : 0.1,
+        "c" : .3,
+        "beta" : .25,
+        "M" : 1,
+        "K" : 5,
+        "full_time_series": True,
+        "gamma" : 0.1,
+        "delta": 0.9
+    }
+
+    G = nx.karate_club_graph()
+    model = Model(seed_sequence=seed, G=G, **params)
+
+    seed_nodes = None
+    if type == 'degree':
+        seed_nodes = model.degree_solution(k=k)
+    elif type == 'random':
+        seed_nodes = model.random_solution(k=k)
+    elif type == 'min_opinion':
+        seed_nodes = model.min_opinion_solution(k=k)
+
+    # seed nodes adopt opinion 1
+    if seed_nodes is not None:
+        for node, _ in seed_nodes:
+            model.X[node] = 1
+
+    model.run(test=True)
+    return model, k
+
+def test_om(load=False):
+    if load is False:
+        simulations = 7
+        pool = multiprocessing.Pool(processes=10)
+        results = []
+        for i in range(simulations):
+            k=5
+            result = pool.apply_async(run_om, args=(i*k, 'random'))
+            results.append(result)
+        
+        # Close the pool
+        pool.close()
+        pool.join()
+
+        # Wait for all the simulation tasks to complete
+        max_opinion_random = {}
+        for result in results:
+            model, k = result.get()
+            max_opinion_random[k] = np.sum(model.X.copy())
+
+
+        # min_opinion
+        pool = multiprocessing.Pool(processes=10)
+        results = []
+        for i in range(simulations):
+            k=5
+            result = pool.apply_async(run_om, args=(i*k, 'min_opinion'))
+            results.append(result)
+        
+        # Close the pool
+        pool.close()
+        pool.join()
+
+        # Wait for all the simulation tasks to complete
+        max_opinion_min = {}
+        for result in results:
+            model, k = result.get()
+            max_opinion_min[k] = np.sum(model.X.copy())
+
+        # degree solution
+        pool = multiprocessing.Pool(processes=10)
+        results = []
+        for i in range(simulations):
+            k=5
+            result = pool.apply_async(run_om, args=(i*k, 'degree'))
+            results.append(result)
+        
+        # Close the pool
+        pool.close()
+        pool.join()
+
+        max_opinion_degree = {}
+        for result in results:
+            model, k = result.get()
+            max_opinion_degree[k] = np.sum(model.X.copy())
+
+        print('random: ', max_opinion_random)
+        print('min: ', max_opinion_min)
+        print('degree: ', max_opinion_degree)
+
+        with bz2.BZ2File('data/OM/max_opinion_random.pbz2', 'w') as f:
+            pickle.dump(max_opinion_random, f)
+            print('saved to file')
+
+        with bz2.BZ2File('data/OM/max_opinion_min.pbz2', 'w') as f:
+            pickle.dump(max_opinion_min, f)
+            print('saved to file')
+
+        with bz2.BZ2File('data/OM/max_opinion_degree.pbz2', 'w') as f:
+            pickle.dump(max_opinion_degree, f)
+            print('saved to file')
+    else:
+        # load data 
+        max_opinion_random = bz2.BZ2File('data/OM/max_opinion_random.pbz2', 'rb')
+        max_opinion_random = pickle.load(max_opinion_random)
+
+        max_opinion_min = bz2.BZ2File('data/OM/max_opinion_min.pbz2', 'rb')
+        max_opinion_min = pickle.load(max_opinion_min)
+
+        max_opinion_degree = bz2.BZ2File('data/OM/max_opinion_degree.pbz2', 'rb')
+        max_opinion_degree = pickle.load(max_opinion_degree)
+
+    # Line plot of OM algorithms
+    plt.figure(figsize=(8, 6))
+    plt.plot(list(max_opinion_random.keys()), list(max_opinion_random.values()), color='red', marker='o', label='Random')
+    plt.plot(list(max_opinion_min.keys()), list(max_opinion_min.values()), color='orange', marker='x', label='Min')
+    plt.plot(list(max_opinion_degree.keys()), list(max_opinion_degree.values()), color='blue', marker='+', label='Degree')
+    plt.xlabel('$\it{k}$')
+    plt.ylabel('g(x)')
+    plt.title('Karate club')
+    plt.legend()
+    plt.show()
+
+def test_assortativity():
+    seed = 51399
+    params = {
+        "trial" : 1,
+        "max_steps" : 100000,
+        "tolerance" : 1e-5,
+        "mu" : 0.1,
+        "c" : .3,
+        "beta" : .25,
+        "M" : 1,
+        "K" : 5,
+        "full_time_series": True,
+        "gamma" : 0.1,
+        "delta": 0.9
+    }
+
+    G = nx.karate_club_graph()
+    model = Model(seed_sequence=seed, G=G, **params)
+    model.run(test=True)
+
+    plt.figure(figsize=(8, 6))
+    plt.plot(model.assortativity_history[:200])
+    plt.xlabel('$\it{t}$')
+    plt.ylabel('assortativity')
+    plt.show()
+
+def baselines_karate():
+    seed = 51399
+    c = 0.1
+    params = {
+        "trial" : 1,
+        "max_steps" : 100000,
+        "tolerance" : 1e-5,
+        "mu" : 0.1,
+        "c" : c,
+        "beta" : 1,
+        "M" : 1,
+        "K" : 1,
+        "gamma" : 0,
+        "delta": 1
+    }
+    filename = f'KC_baseline_c-{c}.pbz2'
+
+    # # save runs
+    # G = nx.karate_club_graph()
+    # model = Model(seed_sequence=seed, G=G, **params)
+    # model.run(test=True)
+
+    # with bz2.BZ2File(f'data/baseline/{filename}', 'w') as f:
+    #         pickle.dump(model, f)
+    #         print(f'saved to file: {filename}')
+
+    # load run
+    model = bz2.BZ2File(f'data/baseline/{filename}', 'rb')
+    model = pickle.load(model)
+
+    font = FontProperties()
+    font.set_family('serif')
+    font.set_name('Times New Roman')
+    font.set_style('italic')
+
+    fontsize = 24
+    
+    # Visualize opinion evolution
+    plt.figure(figsize=(10, 8))
+    plt.plot(model.X_data[:10_000])
+    plt.xlabel('t', fontsize=fontsize, fontproperties=font)
+    plt.ylabel('x', fontsize=fontsize, fontproperties=font)
+    plt.xticks(fontsize=fontsize-4)
+    plt.yticks(fontsize=fontsize-4)
+    plt.show()
+
+
 
 if __name__ == '__main__':
+
+    baselines_karate()
+
+    exit()
+
+    # test_om(load=True)
+    # test_assortativity()
+
     seed = 51399
     N = 1000
     trial = 1
@@ -175,20 +386,14 @@ if __name__ == '__main__':
         "delta": 0.9
     }
 
-    # TODO: look at edge changes, and graph them for report on karate club network
-
-    model = Model(seed_sequence=seed, G=G, **params)
     # model = Model(seed_sequence=seed, **kwparams(10, 0.3, 0.25, 1, 1))
-    model.run(test=True)
-
+    # model.run(test=True)
     # print(model.edge_changes)
 
-    model.print_graph(time=0, opinions=True)
-    model.print_graph(time=model.convergence_time // 2, opinions=True)
-    model.print_graph(opinions=True)
-
-    print(model.initial_c)
-    print(model.c)
+    # plt.xlabel('$\it{t}$')
+    # plt.ylabel('Assortativity coefficient')
+    # # plt.title('Assortativity Evolution')
+    # plt.show()
 
     # for i in range(0, model.convergence_time, 10):
     #     model.print_graph(time=i, opinions=True)
