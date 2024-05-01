@@ -7,3 +7,5 @@
 # all ignore __pycache__ directories
 __pycache__/
 __pycache__/*
+
+/images
