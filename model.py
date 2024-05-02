@@ -5,9 +5,34 @@ import random
 from random import shuffle
 
 import matplotlib.pyplot as plt
+from matplotlib.font_manager import FontProperties
 
 import pickle
 import bz2
+
+import time
+
+# from https://stackoverflow.com/questions/3173320/text-progress-bar-in-terminal-with-block-characters
+def printProgressBar (iteration, total, prefix = '', suffix = '', decimals = 1, length = 100, fill = '█', printEnd = "\r"):
+    """
+    Call in a loop to create terminal progress bar
+    @params:
+        iteration   - Required  : current iteration (Int)
+        total       - Required  : total iterations (Int)
+        prefix      - Optional  : prefix string (Str)
+        suffix      - Optional  : suffix string (Str)
+        decimals    - Optional  : positive number of decimals in percent complete (Int)
+        length      - Optional  : character length of bar (Int)
+        fill        - Optional  : bar fill character (Str)
+        printEnd    - Optional  : end character (e.g. "\r", "\r\n") (Str)
+    """
+    percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
+    filledLength = int(length * iteration // total)
+    bar = fill * filledLength + '-' * (length - filledLength)
+    print(f'\r{prefix} |{bar}| {percent}% {suffix}', end = printEnd)
+    # Print New Line on Complete
+    if iteration == total: 
+        print()
 
 class Model:
     def __init__(self, seed_sequence, G=None, **kwparams) -> None:
@@ -179,6 +204,8 @@ class Model:
             self.stationary_counter = self.stationary_counter + 1 if state_change < self.tolerance else 0
             self.stationary_flag = 1 if self.stationary_counter >= 100 else 0
 
+        l = self.max_steps
+        printProgressBar(0, l, prefix = 'Progress:', suffix = 'Complete', length = 50)
         # run model
         while time < self.max_steps - 1 and self.stationary_flag != 1:
             if self.rewiring: rewire_step()
@@ -186,10 +213,12 @@ class Model:
             check_convergence()
             time += 1
             self.assortativity_history.append(nx.degree_pearson_correlation_coefficient(nx.Graph(self.edges.copy())))
-        
-        G = nx.Graph()
-        G.add_nodes_from(range(self.N))
-        G.add_edges_from(self.edges)
+            printProgressBar(time, l, prefix = 'Progress:', suffix = 'Complete', length = 50)
+
+        printProgressBar(time, time, prefix = 'Progress:', suffix = 'Complete', length = 50)
+        # G = nx.Graph()
+        # G.add_nodes_from(range(self.N))
+        # G.add_edges_from(self.edges)
         # self.G_snapshots.append((time, G))
 
         print(f'Model finished. \nConvergence time: {time}')
@@ -250,8 +279,15 @@ class Model:
             labels=True
 
         elif G.number_of_edges() > 500:
-            width = 0.1
+            width = 0.2
             node_size = 50
+
+        font = FontProperties()
+        font.set_family('serif')
+        font.set_name('Times New Roman')
+        font.set_style('italic')
+
+        fontsize = 20
 
         plt.figure(figsize=(12, 8))
         pos = nx.spring_layout(G, seed=self.seed_sequence, k=.25)
@@ -261,10 +297,8 @@ class Model:
         if opinions:
             sm = plt.cm.ScalarMappable(cmap=cmap)
             sm.set_array(colors)
-            cbar = plt.colorbar(
-                sm, ax=plt.gca(), 
-                shrink=0.65
-            )
+            cbar = plt.colorbar(sm, ax=plt.gca(), shrink=0.75)
+            cbar.ax.tick_params(labelsize=fontsize)  # set fontsize of colorbar
             plt.axis('off')
 
         plt.show()

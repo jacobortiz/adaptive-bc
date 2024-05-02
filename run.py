@@ -11,6 +11,14 @@ import networkx as nx
 import pickle
 import bz2
 
+from sklearn.cluster import KMeans
+from pyclustering.cluster.xmeans import xmeans
+from pyclustering.cluster.center_initializer import kmeans_plusplus_initializer
+
+# xmeans package warning error bypass
+import warnings
+np.warnings = warnings
+
 def kwparams(N, c, beta, trial, K):
     params = {
         "trial" : "ABC",
@@ -264,7 +272,7 @@ def test_assortativity():
 
 def baselines_karate():
     seed = 51399
-    c = 0.1
+    c = 1
     params = {
         "trial" : 1,
         "max_steps" : 100000,
@@ -279,38 +287,86 @@ def baselines_karate():
     }
     filename = f'KC_baseline_c-{c}.pbz2'
 
-    # # save runs
-    # G = nx.karate_club_graph()
-    # model = Model(seed_sequence=seed, G=G, **params)
-    # model.run(test=True)
+    # save runs
+    G = nx.karate_club_graph()
+    model = Model(seed_sequence=seed, G=G, **params)
+    model.run(test=True)
 
-    # with bz2.BZ2File(f'data/baseline/{filename}', 'w') as f:
-    #         pickle.dump(model, f)
-    #         print(f'saved to file: {filename}')
+    with bz2.BZ2File(f'data/baseline/{filename}', 'w') as f:
+            pickle.dump(model, f)
+            print(f'saved to file: {filename}')
 
     # load run
+    print(f'loading {filename}')
     model = bz2.BZ2File(f'data/baseline/{filename}', 'rb')
     model = pickle.load(model)
+    print('done.')
+    # print(f'c={c}, : {model.convergence_time}')
 
-    print(len(model.edges))
+    # num_clusters = find_clusters(model)
+
 
     font = FontProperties()
     font.set_family('serif')
     font.set_name('Times New Roman')
     font.set_style('italic')
 
-    fontsize = 24
-    
+    fontsize = 34
+
     # Visualize opinion evolution
     plt.figure(figsize=(10, 8))
-    plt.plot(model.X_data[:10_000])
+    plt.plot(model.X_data)
     plt.xlabel('t', fontsize=fontsize, fontproperties=font)
     plt.ylabel('x', fontsize=fontsize, fontproperties=font)
     plt.xticks(fontsize=fontsize-4)
-    plt.yticks(fontsize=fontsize-4)
+    plt.yticks(fontsize=fontsize-4) 
+
+    plt.gca().set_xticks(range(0, model.convergence_time, 3000))
+    # plt.gca().set_xticklabels([f'{int(t/1000)}k' if t > 0 else int(t) for t in plt.gca().get_xticks()])
+
     plt.show()
+    
+    # Visualize opinion evolution
+    # plt.figure(figsize=(10, 8))
+    # plt.plot(model.X_data)
+    # plt.xlabel('t', fontsize=fontsize, fontproperties=font)
+    # plt.ylabel('x', fontsize=fontsize, fontproperties=font)
+    # plt.xticks(fontsize=fontsize-4)
+    # plt.yticks(fontsize=fontsize-4)
+    # plt.show()
 
+def find_clusters(model):
+    if model is None:
+        raise ValueError('Model cannot be None.')
+        
+    data = model.X_data[-1]
 
+    # Specify the range of possible numbers of clusters
+
+    kmin = 1  # Minimum number of clusters
+    kmax = 5  # Maximum number of clusters
+
+    # Initialize the initial centers using the K-means++ method
+    initial_centers = kmeans_plusplus_initializer(data.reshape(-1, 1), kmin).initialize()
+
+    # Create an instance of the Xmeans algorithm
+    xmeans_instance = xmeans(data.reshape(-1, 1), initial_centers, kmax)
+
+    # Run the Xmeans algorithm
+    xmeans_instance.process()
+
+    # Get the clusters and their centers
+    clusters = xmeans_instance.get_clusters()
+    centers = xmeans_instance.get_centers()
+
+    # Print the number of clusters found
+    num_clusters = len(clusters)
+    print(f"Number of clusters found: {num_clusters}")
+
+    for i, cluster in enumerate(clusters):
+        print(f"Cluster {i+1}: {cluster}, {model.X[cluster]}")
+
+    return num_clusters
 
 if __name__ == '__main__':
 

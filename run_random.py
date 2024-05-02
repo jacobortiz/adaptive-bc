@@ -33,19 +33,110 @@ def kwparams(N, c, beta, trial, K):
     }
     return params
 
+def baseline_params(N, c, K, i):
+    baseline = {
+        "trial" : i,
+        "max_steps" : 100000,
+        "N" : N,
+        "p" : 0.01,
+        "tolerance" : 1e-5,
+        "mu" : 0.1,
+        "beta" : 1,
+        "c" : c,
+        "M" : 1,
+        "K" : K,
+        "gamma": 0,     # 0 is DW
+        "delta": 1,     # 1 is DW
+    }
+    return baseline
+
+def load_baseline_files():
+    N = 1000
+    # c = np.round(RNG.uniform(0.1, 1, N), decimals=1)
+    c = 0.1
+    K = 5
+
+    filename = f'ER_baseline_c-{c}.pbz2'
+    path = 'data/baseline/' + filename
+    print(f'loading {filename} ...')
+    loaded_model = bz2.BZ2File(path, 'rb')
+    loaded_model = pickle.load(loaded_model)
+    print('done.')
+
+    # initial
+    loaded_model.print_graph(time=0, opinions=True)
+    # final
+    loaded_model.print_graph(time=-1, opinions=True)
+
+    # print(loaded_model.X_data[0][:50])
+    # print(loaded_model.X_data[loaded_model.convergence_time //2][:50])
+    # print(loaded_model.X_data[-1][:50])
+
+def run_model(c, i):
+    model = Model(seed_sequence=SEED, **baseline_params(1000, c, 5, i))
+    model.run(test=True)
+    return model
+
 def ER_random():
     N = 1000
-    K = 1
+    # c = np.round(RNG.uniform(0.1, 1, N), decimals=1)
+    # c = 0.1
+    K = 5
+    
+    # filename = f'ER_baseline_c-{c}.pbz2'
 
-    for i in range(10):
-        c = np.round(RNG.uniform(0.1, 1, N), decimals=1)
-        model = Model(seed_sequence=SEED+i, **kwparams(N, c, .3, 1, K))
-        print(f'seed: {model.seed_sequence}, edges: {len(model.edges)}')
+    # Define the range of c values to test
+    c_values = [0.1,0.3,0.5,1]
+
+    # model = Model(seed_sequence=SEED, **baseline_params(N, c, K))
+
+    # with Pool(processes=len(c_values)) as pool:
+    #     results = pool.map(run_model, c_values)
+
+    # for i, result in enumerate(results):
+    #     filename = f'ER_baseline_c-{c_values[i]}_K-{K}.pbz2'
+    #     with bz2.BZ2File(f'data/baseline/{filename}', 'w') as f:
+    #         pickle.dump(result, f)
+    #         print(f'saved to file: {filename}')
+
+    """ improved? """
+    pool = multiprocessing.Pool(processes=10)
+
+    simulations = range(len(c_values))
+    results = []
+
+    for i in simulations:
+        result = pool.apply_async(run_model, args=(c_values[i], i))
+        results.append(result)
+    
+    # Close the pool
+    pool.close()
+    pool.join()
+
+    # Wait for all the simulation tasks to complete
+    for result in results:
+        model = result.get()
+        filename = f'ER_baseline_c-{c_values[model.trial]}_K-{K}.pbz2'
+        with bz2.BZ2File(f'data/baseline/{filename}', 'w') as f:
+            pickle.dump(model, f)
+            print(f'saved to file: {filename}')
+    
+    # model.run(test=True)
+
+    # with bz2.BZ2File(f'data/baseline/{filename}', 'w') as f:
+    #         pickle.dump(model, f)
+    #         print(f'saved to file: {filename}')
+
+    # print(model.X_data[0])
+    # print(model.X_data[-1])
+
+    #model.print_graph(time=0, opinions=True)
 
 
 
 if __name__ == '__main__':
 
+    # load_baseline_files()
     ER_random()
     exit()
 
