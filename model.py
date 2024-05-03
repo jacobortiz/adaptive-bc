@@ -67,7 +67,6 @@ class Model:
         self.X_data = np.ndarray((self.max_steps, self.N))   # storing time series opinion data
         self.X_data[0, :] = self.X                           # record initial opinions
         self.edge_changes = []                                  # record edge changes
-        # self.G_snapshots = []                           # record network snapshots every 250 time steps
 
         self.num_discordant_edges = np.empty(self.max_steps)# track number of discordant edges
         self.stationary_counter = 0                         # determining if we reached a stationary state
@@ -154,13 +153,6 @@ class Model:
 
                 self.edge_changes.append((time, edge, new_edge))
 
-            # add network snapshots
-            # if time % 1000 == 0:
-            #     G = nx.Graph()
-            #     G.add_nodes_from(range(self.N))
-            #     G.add_edges_from(self.edges.copy())
-            #     self.G_snapshots.append((time, G))
-
         # update opinions using DW
         def dw_step():
             # choose K edges for nodes to update opinions
@@ -172,8 +164,7 @@ class Model:
             for u, w in node_pairs:
                 # assumptions here
                 # using confidence bound of the receiving agent
-                diff = abs(self.X[u] - self.X[w])
-                if diff < self.c[u]:
+                if abs(self.X[u] - self.X[w]) < self.c[u]:
                     # update opinions
                     X_new[u] = self.X[u] + self.mu * (self.X[w] - self.X[u])
                     self.nodes[u].update_opinion(X_new[u])
@@ -184,7 +175,7 @@ class Model:
                     self.c[u] = self.delta * self.c[u]
 
                 # check other agent is withing their own bounds
-                if diff < self.c[w]:
+                if abs(self.X[w] - self.X[u]) < self.c[w]:
                     X_new[w] = self.X[w] + self.mu * (self.X[u] - self.X[w])
                     self.nodes[w].update_opinion(X_new[w])
                     self.c[w] = self.c[w] + self.gamma * (1 - self.c[w])
@@ -205,7 +196,7 @@ class Model:
             self.stationary_flag = 1 if self.stationary_counter >= 100 else 0
 
         l = self.max_steps
-        printProgressBar(0, l, prefix = 'Progress:', suffix = 'Complete', length = 50)
+        printProgressBar(0, l, prefix = 'Running Model:', suffix = 'Complete', length = 50)
         # run model
         while time < self.max_steps - 1 and self.stationary_flag != 1:
             if self.rewiring: rewire_step()
@@ -213,18 +204,16 @@ class Model:
             check_convergence()
             time += 1
             self.assortativity_history.append(nx.degree_pearson_correlation_coefficient(nx.Graph(self.edges.copy())))
-            printProgressBar(time, l, prefix = 'Progress:', suffix = 'Complete', length = 50)
+            printProgressBar(time, l, prefix = 'Running Model:', suffix = 'Complete', length = 50)
 
-        printProgressBar(time, time, prefix = 'Progress:', suffix = 'Complete', length = 50)
-        # G = nx.Graph()
-        # G.add_nodes_from(range(self.N))
-        # G.add_edges_from(self.edges)
-        # self.G_snapshots.append((time, G))
+        printProgressBar(time, time, prefix = 'Running Model:', suffix = 'Complete', length = 50)
 
         print(f'Model finished. \nConvergence time: {time}')
 
         self.convergence_time = time
         self.X_data = self.X_data[:time, :]
+        self.num_discordant_edges = self.num_discordant_edges[:self.convergence_time - 1]
+        self.num_discordant_edges = np.trim_zeros(self.num_discordant_edges)
         if not test: self.save_model()
 
     def get_edges(self, time: int = None) -> list:
@@ -260,7 +249,7 @@ class Model:
         else:
             return self.X_data[:time + 1, :]
         
-    def print_graph(self, time: int = None, opinions: bool = False) -> None:
+    def print_graph(self, time: int = None, opinions: bool = False, k: float = 0.25) -> None:
         G = self.get_network(time)
 
         # print last time step if not providing time
@@ -273,7 +262,7 @@ class Model:
         colors = 'skyblue' if not opinions else [self.X_data[time][node] for node in list(G.nodes())]
 
         # print(f'{time}: {self.X_data[time]}')
-        node_size = 300
+        node_size = 600
 
         if G.number_of_nodes() < 100:
             labels=True
@@ -290,7 +279,7 @@ class Model:
         fontsize = 20
 
         plt.figure(figsize=(12, 8))
-        pos = nx.spring_layout(G, seed=self.seed_sequence, k=.25)
+        pos = nx.spring_layout(G, seed=self.seed_sequence, k=k)
         nx.draw(G, pos=pos, node_color=colors, node_size=node_size, edge_color='gray', width=width, cmap=cmap, with_labels=labels, node_shape='o')
 
         # move opinion colors here
@@ -329,10 +318,6 @@ class Model:
         print(f'Edges to rewire at each time step, M: {self.M}')
         print(f'Node pairs to update opinions, K: {self.K}')
 
-    def OM_algorithms():
-        # TODO: add algorithms
-        pass
-
     def degree_solution(self, k: int):
         " select top k nodes ranked in decreasing order by their degree "        
         return sorted(self.original_graph.degree, key=lambda x: x[1], reverse=True)[:k]
@@ -346,3 +331,11 @@ class Model:
         " select nodes with smallest opinions to adopt opinion 1"
         selected_nodes = sorted(range(len(self.X)), key=lambda i: self.X[i])[:k]
         return list(self.original_graph.degree(selected_nodes))
+
+    def max_opinion_solution(self, k: int):
+        " select nodes with smallest opinions to adopt opinion 1"
+        selected_nodes = sorted(range(len(self.initial_X)), key=lambda i: self.initial_X[i], reverse=True)[:k]
+        return list(self.original_graph.degree(selected_nodes))
+    
+    def greedy_solution(self, k: int):
+        pass

@@ -19,10 +19,20 @@ from pyclustering.cluster.center_initializer import kmeans_plusplus_initializer
 import warnings
 np.warnings = warnings
 
+SEED=51399
+RNG = np.random.default_rng(seed=SEED)
+
+FONT = FontProperties()
+FONT.set_family('serif')
+FONT.set_name('Times New Roman')
+FONT.set_style('italic')
+FONTSIZE = 34
+
+""" CHANGE TO RUN TESTS HERE"""
 def kwparams(N, c, beta, trial, K):
     params = {
         "trial" : "ABC",
-        "max_steps" : 100000,
+        "max_steps" : 100_000,
         "N" : N,
         "p" : 0.1,
         "tolerance" : 1e-5,
@@ -335,6 +345,146 @@ def baselines_karate():
     # plt.yticks(fontsize=fontsize-4)
     # plt.show()
 
+def run_abc_karate(beta: float):
+    print('running abc_karate')
+    G = nx.karate_club_graph()
+    N = G.number_of_nodes()
+    c = np.round(RNG.uniform(0.1, 1, N), decimals=1)
+
+    model = Model(seed_sequence=SEED, G=G, **kwparams(N, c, beta, 1, 5))
+    model.run(test=True)
+    return model
+
+def ABC_karate():
+    G = nx.karate_club_graph()
+    N = G.number_of_nodes()
+    c = np.round(RNG.uniform(0.1, 1, N), decimals=1)
+    beta = 1 # """ CHANGE """
+    K = 5
+
+    # b_values = [0.1, 0.3, 0.5, 0.7]
+
+    # pool = multiprocessing.Pool(processes=10)
+    # simulations = range(len(b_values))
+
+    # results = []
+    # for i in simulations:
+    #     result = pool.apply_async(run_abc_karate, args=(b_values[i]))
+    #     results.append(result)
+    
+    # # Close the pool
+    # pool.close()
+    # pool.join()
+
+    # # Wait for all the simulation tasks to complete
+    # for result in results:
+    #     model = result.get()
+    #     filename = f'KC_ABC_beta-{model.beta}_K-{model.K}.pbz2'
+    #     with bz2.BZ2File(f'data/abc/{filename}', 'w') as f:
+    #         pickle.dump(model, f)
+    #         print(f'saved to file: {filename}')
+
+
+    # print(r'%%%%%%%%% DONE WITH SIMULATIONS %%%%%%%%%')
+
+    model = Model(seed_sequence=SEED, G=G, **kwparams(None, c, beta, 1, 5))
+    model.run(test=True)
+
+    filename = f'KC_ABC_beta-{beta}_K-{K}.pbz2'
+    with bz2.BZ2File(f'data/abc/{filename}', 'w') as f:
+        pickle.dump(model, f)
+        print(f'saved to file: {filename}')
+
+    # loaded_model.print_graph(opinions=True)
+
+    # # initial plots
+    # # plot confidence
+    # data = loaded_model.initial_c # np.round(loaded_model.initial_c, decimals=1)
+    # plt.figure(figsize=(10, 8))
+    # plt.hist(data, bins=10, color='#607c8e', rwidth=0.9)
+    # plt.xlabel('c', fontsize=fontsize, fontproperties=font)
+    # plt.ylabel('Frequency', fontsize=fontsize-2)
+    # plt.xticks(fontsize=fontsize-4)
+    # plt.yticks(fontsize=fontsize-4)
+    # plt.show()
+    
+    print('done saving')
+
+def load_ABC_karate():
+    K = 5
+    beta = .3
+    filename = f'KC_ABC_beta-{beta}_K-{K}.pbz2'
+    # load run
+    print(f'loading {filename}')
+    loaded_model = bz2.BZ2File(f'data/abc/{filename}', 'rb')
+    loaded_model = pickle.load(loaded_model)
+    print('done.')
+
+    beta1 = bz2.BZ2File(f'data/abc/KC_ABC_beta-0.1_K-{K}.pbz2', 'rb')
+    beta1 = pickle.load(beta1)
+    beta3 = bz2.BZ2File(f'data/abc/KC_ABC_beta-0.3_K-{K}.pbz2', 'rb')
+    beta3 = pickle.load(beta3)
+    beta5 = bz2.BZ2File(f'data/abc/KC_ABC_beta-0.5_K-{K}.pbz2', 'rb')
+    beta5 = pickle.load(beta5)
+    beta7 = bz2.BZ2File(f'data/abc/KC_ABC_beta-0.7_K-{K}.pbz2', 'rb')
+    beta7 = pickle.load(beta7)
+
+    data1 = np.trim_zeros(beta1.num_discordant_edges)
+    data3 = np.trim_zeros(beta3.num_discordant_edges)
+    data5 = np.trim_zeros(beta5.num_discordant_edges)
+    data7 = np.trim_zeros(beta7.num_discordant_edges)
+
+    
+
+    # plot num_discordant_edges
+    plt.figure(figsize=(10, 8))
+    plt.xlabel('t', fontsize=FONTSIZE, fontproperties=FONT)
+    plt.ylabel('e(t)', fontsize=FONTSIZE, fontproperties=FONT)
+    plt.plot(data1, label=r'$\beta$=0.1', color='purple', marker='v', markersize=5)
+    plt.plot(data3, label=r'$\beta$=0.3', color='blue', marker='d', markersize=5)
+    plt.plot(data5, label=r'$\beta$=0.5', color='orange', marker='o', markersize=5)
+    plt.plot(data7, label=r'$\beta$=0.7', color='red', marker='+', markersize=10)
+    plt.gca().set_xticks(range(0, 200, 50))
+    plt.xticks(fontsize=FONTSIZE-12)
+    plt.yticks(fontsize=FONTSIZE-12) 
+    plt.legend(prop={'size': (FONTSIZE // 2) + 4})
+    plt.show()
+
+
+
+
+    # plot network and opinions
+    # loaded_model.print_graph(time=0, opinions=True)
+    # TEMP TEST
+    # def fast():
+    #     print('runnig quick test')
+    #     G = nx.karate_club_graph()
+    #     N = G.number_of_nodes()
+    #     # c = np.round(RNG.uniform(0.1, 1, N), decimals=1)
+    #     c = 1
+    #     beta = 1 # """ CHANGE """
+    #     K = 5
+    #     model = Model(seed_sequence=SEED, G=G, **kwparams(None, c, beta, 1, K))        
+    #     model.run(test=True)
+    #     print(model.X_data[0])
+    #     print(model.X_data[-1])
+    #     model.print_graph(opinions=True)
+
+    # Visualize opinion evolution
+    # plt.figure(figsize=(10, 8))
+    # plt.plot(loaded_model.X_data)
+    # plt.xlabel('t', fontsize=FONTSIZE, fontproperties=FONT)
+    # plt.ylabel('x', fontsize=FONTSIZE, fontproperties=FONT)
+    # plt.xticks(fontsize=FONTSIZE-4)
+    # plt.yticks(fontsize=FONTSIZE-4) 
+
+    # plt.gca().set_xticks(range(0, loaded_model.convergence_time, 750))
+    # # plt.gca().set_xticklabels([f'{int(t/1000)}k' if t > 0 else int(t) for t in plt.gca().get_xticks()])
+
+    # plt.show()
+
+
+
 def find_clusters(model):
     if model is None:
         raise ValueError('Model cannot be None.')
@@ -370,8 +520,9 @@ def find_clusters(model):
 
 if __name__ == '__main__':
 
-    baselines_karate()
-
+    # baselines_karate()
+    # ABC_karate()
+    load_ABC_karate()
     exit()
 
     # test_om(load=True)
@@ -393,20 +544,20 @@ if __name__ == '__main__':
     #     result = pool.apply_async(run_model, args=(seed+i, baseline_params(N)))
     #     results.append(result)
 
-    # for i in range(simulations):
-    #     RNG = np.random.default_rng(seed=seed+i)
-    #     c = np.round(RNG.uniform(0.1, 1, N), decimals=1)    
-    #     result = pool.apply_async(run_model, args=(seed+i, kwparams(N, c, beta, 1, K)))
-    #     results.append(result)
+    for i in range(simulations):
+        RNG = np.random.default_rng(seed=seed+i)
+        c = np.round(RNG.uniform(0.1, 1, N), decimals=1)    
+        result = pool.apply_async(run_model, args=(seed+i, kwparams(N, c, beta, 1, K)))
+        results.append(result)
     
     # Close the pool
-    # pool.close()
-    # pool.join()
+    pool.close()
+    pool.join()
 
     # Wait for all the simulation tasks to complete
-    # for result in results:
-    #     model = result.get()
-    #     print(f'model: {model.trial}, convergence time: {model.convergence_time}')
+    for result in results:
+        model = result.get()
+        print(f'model: {model.trial}, convergence time: {model.convergence_time}')
 
     # Plot opinion evolution for baseline model
     # plt.figure(figsize=(12, 8))
