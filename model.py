@@ -1,3 +1,4 @@
+import itertools
 import networkx as nx
 from node import Node
 import numpy as np
@@ -43,7 +44,7 @@ class Model:
 
         # set model params
         self.trial = kwparams['trial']                      # trial ID (for saving model)
-        self.max_steps = kwparams['max_steps']              # max time steps model runs
+        self.max_steps = 250_000 # kwparams['max_steps']              # max time steps model runs
         if not G: self.N = kwparams['N']                    # number of nodes
         if not G: self.p = kwparams['p']                    # probability of edge creation, p in G(N, p)
         self.tolerance = kwparams['tolerance']              # convergence tolerance (1-e^5)
@@ -119,7 +120,7 @@ class Model:
         self.assortativity_history.append(nx.degree_pearson_correlation_coefficient(G))
 
     # run the model
-    def run(self, test=False) -> None:
+    def run(self, test=False, label="", opinions=None) -> None:
         time = 0
         def rewire_step():
             # get discordant edges
@@ -169,7 +170,8 @@ class Model:
                     X_new[u] = self.X[u] + self.mu * (self.X[w] - self.X[u])
                     self.nodes[u].update_opinion(X_new[u])
                     # update confidence
-                    self.c[u] = self.c[u] + self.gamma * (1 - self.c[u])
+                    # self.c[u] = self.c[u] + self.gamma * (1 - self.c[u])
+                    self.c[u] = (1 - self.gamma) + self.c[u] + self.gamma
                 else:
                     # update confidence using repulsion parameter, delta
                     self.c[u] = self.delta * self.c[u]
@@ -178,7 +180,7 @@ class Model:
                 if abs(self.X[w] - self.X[u]) < self.c[w]:
                     X_new[w] = self.X[w] + self.mu * (self.X[u] - self.X[w])
                     self.nodes[w].update_opinion(X_new[w])
-                    self.c[w] = self.c[w] + self.gamma * (1 - self.c[w])
+                    self.c[w] = (1 - self.gamma) + self.c[w] + self.gamma
                 else:
                     # update confidence using repulsion parameter, delta
                     self.c[w] = self.delta * self.c[w]
@@ -196,7 +198,7 @@ class Model:
             self.stationary_flag = 1 if self.stationary_counter >= 100 else 0
 
         l = self.max_steps
-        printProgressBar(0, l, prefix = 'Running Model:', suffix = 'Complete', length = 50)
+        printProgressBar(0, l, prefix = 'Loading Model:', suffix = 'Complete', length = 50)
         # run model
         while time < self.max_steps - 1 and self.stationary_flag != 1:
             if self.rewiring: rewire_step()
@@ -204,7 +206,7 @@ class Model:
             check_convergence()
             time += 1
             self.assortativity_history.append(nx.degree_pearson_correlation_coefficient(nx.Graph(self.edges.copy())))
-            printProgressBar(time, l, prefix = 'Running Model:', suffix = 'Complete', length = 50)
+            printProgressBar(time, l, prefix = f'Running {label}:', suffix = 'Complete', length = 50)
 
         printProgressBar(time, time, prefix = 'Running Model:', suffix = 'Complete', length = 50)
 
@@ -317,6 +319,9 @@ class Model:
         print(f'Rewiring threshold: {self.beta}')
         print(f'Edges to rewire at each time step, M: {self.M}')
         print(f'Node pairs to update opinions, K: {self.K}')
+        print(f'Confidence update, $\gamma$: {self.gamma}')
+        print(f'Confidence repulsion, $\delta$: {self.delta}')
+
 
     def degree_solution(self, k: int):
         " select top k nodes ranked in decreasing order by their degree "        
@@ -333,9 +338,100 @@ class Model:
         return list(self.original_graph.degree(selected_nodes))
 
     def max_opinion_solution(self, k: int):
-        " select nodes with smallest opinions to adopt opinion 1"
+        " select nodes with largest opinions to adopt opinion 1"
         selected_nodes = sorted(range(len(self.initial_X)), key=lambda i: self.initial_X[i], reverse=True)[:k]
         return list(self.original_graph.degree(selected_nodes))
-    
+
+    def min_degree_solution(self, k: int):
+        " select nodes with smallest degree"
+        return sorted(self.original_graph.degree, key=lambda x: x[1])[:k]
+
+    """ check for correctness """
     def greedy_solution(self, k: int):
-        pass
+        print('running greedy')
+        selected_nodes = []
+        for _ in range(k):
+            best_opinion = -1
+            best_agent = -1
+
+            for i in range(self.N):
+                if i not in selected_nodes:
+                    temp_opinions = self.initial_X.copy()
+                    temp_opinions[i] = 1
+                    
+                    final_opinions = self.__run_greedy(temp_opinions)
+                    average_opinion = np.mean(final_opinions)
+                    if average_opinion > best_opinion:
+                        best_opinion = average_opinion
+                        best_agent = i
+
+            selected_nodes.append(best_agent)
+    
+        return list(self.original_graph.degree(selected_nodes))
+    
+    def __run_greedy(self, temp_opinions):
+        # Initialize opinions and confidence
+        X = temp_opinions.copy()
+        c = self.c.copy()
+        X_new = X.copy()
+
+        # Initialize time
+        time = 0
+
+        # Initialize stationary variables
+        stationary_counter = 0
+        stationary_flag = 0
+    
+        # Run model
+        while time < self.max_steps - 1 and stationary_flag != 1:
+            # Generate node pairs with an edge to interact
+            node_pairs = [(u, w) for (u, w) in itertools.combinations(self.original_graph.nodes(), 2) if self.original_graph.has_edge(u, w)]
+
+            for u, w in node_pairs:
+                # Update opinions and confidence
+                if abs(X[u] - X[w]) < c[u]:
+                    X_new[u] = X[u] + self.mu * (X[w] - X[u])
+                    c[u] = (1 - self.gamma) + c[u] + self.gamma
+                else:
+                    c[u] = self.delta * c[u]
+
+                if abs(X[w] - X[u]) < c[w]:
+                    X_new[w] = X[w] + self.mu * (X[u] - X[w])
+                    c[w] = (1 - self.gamma) + c[w] + self.gamma
+                else:
+                    c[w] = self.delta * c[w]
+
+            # Update data
+            X_prev = X.copy()
+            X = X_new
+
+            # Check convergence
+            state_change = np.sum(np.abs(X - X_prev))
+            stationary_counter = stationary_counter + 1 if state_change < self.tolerance else 0
+            stationary_flag = 1 if stationary_counter >= 100 else 0
+
+            # Increment time
+            time += 1
+
+        return X
+    
+
+
+        # previous
+        # selected_nodes = []
+        # for _ in range(k):
+        #     max_increase = 0
+        #     best_node = None
+        #     for node in self.original_graph.nodes():
+        #         if node in selected_nodes:
+        #             continue
+        #         # Calculate the increase in overall opinion if this node were to adopt opinion 1
+        #         increase = sum(self.initial_X[n] for n in self.original_graph.neighbors(node))
+        #         if increase > max_increase:
+        #             max_increase = increase
+        #             best_node = node
+
+        #     if best_node is not None:
+        #         selected_nodes.append(best_node)
+        
+        # return list(self.original_graph.degree(selected_nodes))
