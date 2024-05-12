@@ -270,7 +270,7 @@ def run_om(k: int, type: str):
         "trial" : 1,
         "N": 1000,
         "p": 0.01,
-        "max_steps" : 250_000,
+        "max_steps" : 150_000,
         "tolerance" : 1e-5,
         "mu" : 0.1,
         "c" : c,
@@ -299,12 +299,12 @@ def run_om(k: int, type: str):
     if seed_nodes is not None:
         for node, _ in seed_nodes:
             model.X[node] = 1
+            model.c[node] = 0
 
     model.run(test=True, label='OM')
     return model, k
 
 def test_om(load=False):
-    print('running OM')
     if load is False:
         simulations = 20
         pool = multiprocessing.Pool(processes=10)
@@ -420,27 +420,27 @@ def test_om(load=False):
             print('saved to file')
 
 
-        print('random: ', max_opinion_random)
-        print('min: ', max_opinion_min)
-        print(f'max: {max_opinion_max}')
-        print('degree: ', max_opinion_degree)
-        print(f'min degree: {max_opinion_min_degree}')
 
         """ SAVE """
         with bz2.BZ2File('data/OM/ER_max_opinion_random.pbz2', 'w') as f:
             pickle.dump(max_opinion_random, f)
             print('saved to file')
 
+        # print('random: ', max_opinion_random)
+        # print('min: ', max_opinion_min)
+        # print(f'max: {max_opinion_max}')
+        # print('degree: ', max_opinion_degree)
+        # print(f'min degree: {max_opinion_min_degree}')
         """ save results objects """
-        results_data = {
-            "result_degree": results_degree,
-            "results_max_opinion": results_max_opinion,
-            "results_min_degree": results_min_degree
-        }
+        # results_data = {
+        #     "result_degree": results_degree,
+        #     "results_max_opinion": results_max_opinion,
+        #     "results_min_degree": results_min_degree
+        # }
 
-        with bz2.BZ2File('data/OM/ER_MODEL_OBJECTS_FINAL.pbz2', 'w') as f:
-            pickle.dump(results_data, f)
-            print('saved to file')
+        # with bz2.BZ2File('data/OM/ER_MODEL_OBJECTS_FINAL.pbz2', 'w') as f:
+        #     pickle.dump(results_data, f)
+        #     print('saved to file')
 
 
     else:
@@ -460,6 +460,11 @@ def test_om(load=False):
         max_opinion_min_degree = bz2.BZ2File('data/OM/ER_max_opinion_min_degree.pbz2', 'rb')
         max_opinion_min_degree = pickle.load(max_opinion_min_degree)
 
+            
+        proposed = bz2.BZ2File('data/OM/ER_max_opinion_proposed.pbz2', 'rb')
+        proposed = pickle.load(proposed)
+
+
     # Line plot of OM algorithms
     plt.figure(figsize=(10, 8))
     plt.plot(list(max_opinion_degree.keys()), list(max_opinion_degree.values()), color='red', marker='d', label='Degree')
@@ -467,6 +472,83 @@ def test_om(load=False):
     plt.plot(list(max_opinion_max.keys()), list(max_opinion_max.values()), color='black', marker='v', label='Max-Opinion')
     plt.plot(list(max_opinion_random.keys()), list(max_opinion_random.values()), color='green', marker='o', label='Random')
     plt.plot(list(max_opinion_min_degree.keys()), list(max_opinion_min_degree.values()), color='blue', marker='s', label='Min-Degree')
+    plt.plot(list(proposed.keys()), list(proposed.values()), color='skyblue', marker='s', label='Proposed')
+    plt.xlabel('k', fontsize=FONTSIZE, fontproperties=FONT)
+    plt.ylabel('g(x)', fontsize=FONTSIZE, fontproperties=FONT)
+    
+    plt.xticks(fontsize=FONTSIZE-4)
+    plt.yticks(fontsize=FONTSIZE-4) 
+
+    plt.legend(fontsize=FONTSIZE-16, frameon=False)
+
+    plt.show()
+
+def run_proposed(k: int):
+    c = RNG.uniform(0.1, 1, 1000)
+    params = {
+        "trial" : 1,
+        "N": 1000,
+        "p": 0.01,
+        "max_steps" : 150_000,
+        "tolerance" : 1e-5,
+        "mu" : 0.1,
+        "c" : c,
+        "beta" : .25,
+        "M" : 5,
+        "K" : 25,
+        "gamma" : 0.01,
+        "delta": 0.99
+    }
+
+    model = Model(seed_sequence=SEED, **params)
+    seed_nodes = model.proposed_solution(k)
+
+    # seed nodes adopt opinion 1
+    if seed_nodes is not None:
+        for node, _ in seed_nodes:
+            model.X[node] = 1
+            model.c[node] = 0
+
+    model.run(test=True, label='proposed OM')
+    return model, k
+
+def proposed():
+    simulations = 20
+    pool = multiprocessing.Pool(processes=10)
+    results = []
+    for i in range(simulations):
+        k=50
+        result = pool.apply_async(run_proposed, args=(i*k, ))
+        results.append(result)
+    
+    # Close the pool
+    pool.close()
+    pool.join()
+
+    # Wait for all the simulation tasks to complete
+    proposed_results = {}
+    for result in results:
+        model, k = result.get()
+        proposed_results[k] = np.sum(model.X.copy())
+
+    with bz2.BZ2File('data/OM/ER_max_opinion_proposed.pbz2', 'w') as f:
+            pickle.dump(proposed_results, f)
+            print('saved to file')
+
+    print('done')
+
+def load_proposed():
+
+    filename = 'ER_max_opinion_proposed.pbz2'
+
+    path = 'data/OM/' 
+
+    proposed = bz2.BZ2File('data/OM/ER_max_opinion_proposed.pbz2', 'rb')
+    proposed = pickle.load(proposed)
+
+    # Line plot of OM algorithms
+    plt.figure(figsize=(10, 8))
+    plt.plot(list(proposed.keys()), list(proposed.values()), color='red', marker='d', label='Proposed')
     plt.xlabel('k', fontsize=FONTSIZE, fontproperties=FONT)
     plt.ylabel('g(x)', fontsize=FONTSIZE, fontproperties=FONT)
     
@@ -484,7 +566,9 @@ if __name__ == '__main__':
     # load_baseline_ER()
     # ER_ABC()
     # LOAD_ER_ABC()
-    test_om(load=False)
+    test_om(load=True)
+    # proposed()
+    # load_proposed()
     exit()
 
     seed = 51399

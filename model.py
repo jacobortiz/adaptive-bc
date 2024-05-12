@@ -13,6 +13,12 @@ import bz2
 
 import time
 
+FONT = FontProperties()
+FONT.set_family('serif')
+FONT.set_name('Times New Roman')
+FONT.set_style('italic')
+FONTSIZE = 34
+
 # from https://stackoverflow.com/questions/3173320/text-progress-bar-in-terminal-with-block-characters
 def printProgressBar (iteration, total, prefix = '', suffix = '', decimals = 1, length = 100, fill = '█', printEnd = "\r"):
     """
@@ -44,7 +50,7 @@ class Model:
 
         # set model params
         self.trial = kwparams['trial']                      # trial ID (for saving model)
-        self.max_steps = 250_000 # kwparams['max_steps']              # max time steps model runs
+        self.max_steps = kwparams['max_steps']              # max time steps model runs
         if not G: self.N = kwparams['N']                    # number of nodes
         if not G: self.p = kwparams['p']                    # probability of edge creation, p in G(N, p)
         self.tolerance = kwparams['tolerance']              # convergence tolerance (1-e^5)
@@ -58,7 +64,7 @@ class Model:
 
         
         # store network assortativity, pearson correlation coefficient
-        self.assortativity_history = []
+        self.assortativity_history = [] if self.beta < 1 else None
 
         # generate network and set attributes:
         # opinions, initial_opinions, initial_edges, nodes, edges
@@ -82,12 +88,12 @@ class Model:
     def __initialize_network(self, G: nx.Graph) -> None:
         # generate G(N, p) random graph
         if G:
-            print(f'===== Running on {G.name} =====')
+            # print(f'===== Running on {G.name} =====')
             self.N = G.number_of_nodes()
             self.original_graph = G.copy()
             self.graph_type = G.name
         else:
-            print('===== initializing network =====')
+            # print('===== initializing network =====')
             G = nx.fast_gnp_random_graph(n=self.N, p=self.p, seed=self.seed_sequence, directed=False)
             self.graph_type = 'random Erdős–Rényi graph'
             self.original_graph = G.copy()
@@ -116,11 +122,11 @@ class Model:
         self.nodes = nodes
 
         # self.sum_opinions = np.sum(opinions)
-
-        self.assortativity_history.append(nx.degree_pearson_correlation_coefficient(G))
+        if self.beta < 1:
+            self.assortativity_history.append(nx.degree_pearson_correlation_coefficient(G))
 
     # run the model
-    def run(self, test=False, label="", opinions=None) -> None:
+    def run(self, test=False, opinions=None) -> None:
         time = 0
         def rewire_step():
             # get discordant edges
@@ -170,8 +176,7 @@ class Model:
                     X_new[u] = self.X[u] + self.mu * (self.X[w] - self.X[u])
                     self.nodes[u].update_opinion(X_new[u])
                     # update confidence
-                    # self.c[u] = self.c[u] + self.gamma * (1 - self.c[u])
-                    self.c[u] = (1 - self.gamma) + self.c[u] + self.gamma
+                    self.c[u] = self.c[u] + self.gamma * (1 - self.c[u])
                 else:
                     # update confidence using repulsion parameter, delta
                     self.c[u] = self.delta * self.c[u]
@@ -180,7 +185,9 @@ class Model:
                 if abs(self.X[w] - self.X[u]) < self.c[w]:
                     X_new[w] = self.X[w] + self.mu * (self.X[u] - self.X[w])
                     self.nodes[w].update_opinion(X_new[w])
-                    self.c[w] = (1 - self.gamma) + self.c[w] + self.gamma
+
+                    self.c[w] = self.c[w] + self.gamma * (1 - self.c[w])
+                    # self.c[w] = (1 - self.gamma) + self.c[w] + self.gamma
                 else:
                     # update confidence using repulsion parameter, delta
                     self.c[w] = self.delta * self.c[w]
@@ -198,24 +205,28 @@ class Model:
             self.stationary_flag = 1 if self.stationary_counter >= 100 else 0
 
         l = self.max_steps
-        printProgressBar(0, l, prefix = 'Loading Model:', suffix = 'Complete', length = 50)
+        # printProgressBar(0, l, prefix = 'Loading Model:', suffix = 'Complete', length = 50)
         # run model
         while time < self.max_steps - 1 and self.stationary_flag != 1:
             if self.rewiring: rewire_step()
             dw_step()
             check_convergence()
             time += 1
-            self.assortativity_history.append(nx.degree_pearson_correlation_coefficient(nx.Graph(self.edges.copy())))
-            printProgressBar(time, l, prefix = f'Running {label}:', suffix = 'Complete', length = 50)
 
-        printProgressBar(time, time, prefix = 'Running Model:', suffix = 'Complete', length = 50)
+            if self.rewiring: self.assortativity_history.append(nx.degree_pearson_correlation_coefficient(nx.Graph(self.edges.copy())))
+            # printProgressBar(time, l, prefix = f'Running {label}:', suffix = 'Complete', length = 50)
 
-        print(f'Model finished. \nConvergence time: {time}')
+        # printProgressBar(time, time, prefix = 'Running Model:', suffix = 'Complete', length = 50)
+        print(f'Model finished. Convergence time: {time}')
 
         self.convergence_time = time
         self.X_data = self.X_data[:time, :]
         self.num_discordant_edges = self.num_discordant_edges[:self.convergence_time - 1]
         self.num_discordant_edges = np.trim_zeros(self.num_discordant_edges)
+        
+        # for OM
+        self.overall_opinions = np.sum(self.X.copy())
+
         if not test: self.save_model()
 
     def get_edges(self, time: int = None) -> list:
@@ -293,7 +304,20 @@ class Model:
             plt.axis('off')
 
         plt.show()
-        
+
+    def print_opinions(self):
+        # Visualize opinion evolution
+        plt.figure(figsize=(10, 8))
+        plt.plot(self.X_data)
+        plt.xlabel('t', fontsize=FONTSIZE, fontproperties=FONT)
+        plt.ylabel('x', fontsize=FONTSIZE, fontproperties=FONT)
+        plt.xticks(fontsize=FONTSIZE-4)
+        plt.yticks(fontsize=FONTSIZE-4) 
+
+        # plt.gca().set_xticks(range(0, self.convergence_time, 3000))
+        # plt.gca().set_xticklabels([f'{int(t/1000)}k' if t > 0 else int(t) for t in plt.gca().get_xticks()])
+
+        plt.show()
 
     def save_model(self, filename=None):
         self.X_data = self.X_data[:self.convergence_time, :]
@@ -306,6 +330,23 @@ class Model:
         print(f'saving model to {filename}')
         with bz2.BZ2File(filename, 'w') as f:
             pickle.dump(self, f)
+
+    def simulation_info(self) -> None:
+        print(r'%%%%% Simulation Data %%%%%')
+        print(f'trial: {self.trial}')
+        print(f'convergence time: {self.convergence_time}')
+        print(f'average initial confidence: {np.mean(self.initial_c)}')
+        print(f'average confidence: {np.mean(self.c)}\n')
+        print(f'average initial opinions: {np.mean(self.X_data[0])}')
+        print(f'average opinions: {np.mean(self.X_data[-1])}')
+
+        """ for OM """
+        print(f'overall opinion: {np.sum(self.X.copy())}\n')
+
+        """ for ADAPTIVE """
+        if self.rewiring:
+            print(f'initial assortativity: {self.assortativity_history[0]}')
+            print(f'final assortativity: {self.assortativity_history[-1]}')
 
     def info(self) -> None:
         print('===== Model parameters =====')
@@ -345,10 +386,49 @@ class Model:
     def min_degree_solution(self, k: int):
         " select nodes with smallest degree"
         return sorted(self.original_graph.degree, key=lambda x: x[1])[:k]
+    
+    def proposed_solution(self, k, omega=1):
+        triads = self.__find_triads()
+        node_scores = self.__top_k_nodes_from_triads(triads)
+
+        for key, value in node_scores.items():
+            score = value
+            node_scores[key] = score + (self.original_graph.degree(key)) * omega
+
+        node_scores = {k: v for k, v in sorted(node_scores.items(), key=lambda item: item[1], reverse=True)}
+        selected_nodes = list(node_scores.keys())[:k]
+
+        return list(self.original_graph.degree(selected_nodes))
+
+
+    def __top_k_nodes_from_triads(self, triads):
+        node_scores = {}
+        for triad in triads:
+            for node in triad:
+                if node in node_scores:
+                    node_scores[node] += 1
+                else:
+                    node_scores[node] = 1
+
+        return node_scores
+    
+    def __find_triads(self):
+        """
+        Identifies triadic closures in the network G.
+        Returns a list of triads (sets of three nodes).
+        """
+        triads = []
+        for node in self.original_graph.nodes():
+            neighbors = list(self.original_graph.neighbors(node))
+            for i, neighbor in enumerate(neighbors):
+                for other_neighbor in neighbors[i+1:]:
+                    if self.original_graph.has_edge(neighbor, other_neighbor):
+                        triads.append((node, neighbor, other_neighbor))
+        return triads     
+
 
     """ check for correctness """
     def greedy_solution(self, k: int):
-        print('running greedy')
         selected_nodes = []
         for _ in range(k):
             best_opinion = -1
@@ -391,13 +471,14 @@ class Model:
                 # Update opinions and confidence
                 if abs(X[u] - X[w]) < c[u]:
                     X_new[u] = X[u] + self.mu * (X[w] - X[u])
-                    c[u] = (1 - self.gamma) + c[u] + self.gamma
+                    self.c[u] = self.c[u] + self.gamma * (1 - self.c[u])
+                    c[u] = c[u] + self.gamma * (1 - c[u])
                 else:
                     c[u] = self.delta * c[u]
 
                 if abs(X[w] - X[u]) < c[w]:
                     X_new[w] = X[w] + self.mu * (X[u] - X[w])
-                    c[w] = (1 - self.gamma) + c[w] + self.gamma
+                    c[w] = c[w] + self.gamma * (1 - c[w])
                 else:
                     c[w] = self.delta * c[w]
 
@@ -414,24 +495,3 @@ class Model:
             time += 1
 
         return X
-    
-
-
-        # previous
-        # selected_nodes = []
-        # for _ in range(k):
-        #     max_increase = 0
-        #     best_node = None
-        #     for node in self.original_graph.nodes():
-        #         if node in selected_nodes:
-        #             continue
-        #         # Calculate the increase in overall opinion if this node were to adopt opinion 1
-        #         increase = sum(self.initial_X[n] for n in self.original_graph.neighbors(node))
-        #         if increase > max_increase:
-        #             max_increase = increase
-        #             best_node = node
-
-        #     if best_node is not None:
-        #         selected_nodes.append(best_node)
-        
-        # return list(self.original_graph.degree(selected_nodes))
