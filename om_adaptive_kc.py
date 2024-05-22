@@ -22,6 +22,7 @@ FONTSIZE = 34
 SEED = 51399
 
 def load(filename):
+    # print(f'loading {filename}')
     model = bz2.BZ2File(filename, 'rb')
     model = pickle.load(model)
     return model
@@ -48,14 +49,15 @@ def run_adaptive(c, t):
 
     return model, t
 
-def run_om(k: int, c, b, t, omega=None):
+def run_om(k: int, c, t, trials):
+    SEED = 51399 + trials
     G = nx.karate_club_graph()
     params = {
-            "trial" : f"ADAPTIVE_KC_OM_{t}",
+            "trial" : f"OM-{trials}",
             "max_steps" : 1_000_000,
             "tolerance" : 1e-5,
             "mu" : 0.1,
-            "beta" : b,     # 1 is DW
+            "beta" : 0.25,     # 1 is DW
             "c" : c,
             "M" : 1,
             "K" : 1,
@@ -79,7 +81,9 @@ def run_om(k: int, c, b, t, omega=None):
     elif t == 'min_degree':
         seed_nodes = model.min_degree_solution(k=k)
     elif t == 'proposed':
-        seed_nodes = model.proposed_solution(k=k, omega=omega)
+        seed_nodes = model.proposed_solution(k=k)
+    elif t == 'new':
+        seed_nodes = model.test_new(k=k)
 
     # seed nodes adopt opinion 1, and confidence 0
     for node, _ in seed_nodes:
@@ -87,10 +91,13 @@ def run_om(k: int, c, b, t, omega=None):
         model.c[node] = 0
 
     model.run(test=True)
-    if omega is None:
-        return model, k, b, t
-    else:
-        return model, k, b, t, omega
+    
+    return model, k, t
+
+    # if omega is None:
+    #     return model, k, t
+    # else:
+    #     return model, k,  t, omega
     
 def load_all_om(beta = 0.3):
     """ LOADING DATA """
@@ -270,17 +277,90 @@ def plot_om():
     
     # plt.plot(om_values, label=f'{t}, k={k}, c={c}')
 
+def compare():
+    # # """ load data see if changes worked """
+    path = 'triads_greedy/'
+    k_values = [0, 5, 10, 15, 20]
+    c_values = [0.3]
+    trials = list(range(1, 51))
+    num = len(trials)
+
+    types = ['proposed']
+    params = product(k_values, c_values, types, trials)
+    new_keys = {}    
+    for k, c, type, trials in params:
+        filename = f'KC_ADAPTIVE_greedy-{type}_c-{c}_k-{k}_trial-OM-{trials}.pbz2'
+        data = load(path + filename)
+        if k in new_keys:
+            new_keys[k] += data.overall_opinions
+        else:
+            new_keys[k] = 0
+    
+    for key, val in new_keys.items():
+        new_keys[key] = val / num
+    print(new_keys)
+
+    print('done')
+
+    path = 'new_proposed/'
+    types = ['degree']
+    trials = list(range(1, 51))
+    new_params = product(k_values, c_values, types, trials)
+    old_keys = {}
+    for k, c, type, trials in new_params:
+        filename = f'KC_ADAPTIVE_{type}_c-{c}_k-{k}_trial-OM-{trials}.pbz2'
+        data = load(path + filename)
+        
+        if k in old_keys:
+            old_keys[k] += data.overall_opinions
+        else:
+            old_keys[k] = 0
+    
+
+    for key, val in old_keys.items():
+        old_keys[key] = val / num
+    print(old_keys)
+
+
+def run_om_test():
+    """ new runs"""
+    k_values = [0, 5, 10, 15, 20]
+    c_values = [0.3, 0.5]
+    trials = list(range(1, 51))
+
+    types = ['proposed']
+    params = product(k_values, c_values, types, trials)
+    pool = Pool(processes=multiprocessing.cpu_count())
+    results = []
+
+    for k, c, type, trials in params:
+        print(f'running ADAPTIVE new: trial: {type}')
+        result = pool.apply_async(run_om, args=(k, c, type, trials))
+        results.append(result)
+
+    pool.close()
+    pool.join()
+
+    path = 'triads_greedy/'
+    for result in results:
+        model, k, t = result.get()
+        filename = f'KC_ADAPTIVE_greedy-{t}_c-{model.initial_c[0]}_k-{k}_trial-{model.trial}.pbz2'                
+        
+        with bz2.BZ2File(path + filename, 'w') as f:
+            pickle.dump(model, f)
+            print(f'saved to file, {t}, {filename}')
 
 if __name__ == '__main__':
 
-    # k_values = [0, 5, 10, 15, 20, 25, 30]
-    # c_values = [0.1, 0.3, 0.5]
-    # beta_values = [0.1, 0.3, 0.5]
+    compare()
+    # run_om_test()
+    exit()
 
-    c_values = [0.7, 0.9]
+    k_values = [0, 5, 10, 15, 20]
+    c_values = [0.3]
+    types = ['degree', 'min_degree', 'greedy']
     trials = list(range(1, 51))
-
-    params = product(c_values, trials)
+    params = product(k_values, c_values, types, trials)
     
     # # single test
     # # k_values = [0, 15]
@@ -297,29 +377,21 @@ if __name__ == '__main__':
     pool = Pool(processes=multiprocessing.cpu_count())
     results = []
 
-    for c, t in params:
-        # print(f'running k={k}, c={c}, b={b}, o={o}, type: {t}')
-        result = pool.apply_async(run_adaptive, args=(c, t))
+    for k, c, types, trials in params:
+        result = pool.apply_async(run_om, args=(k, c, types, trials))
         results.append(result)
-
-    # # add o if running proposed in for loop and args() 
-    # for k, c, b, t, o in params:
-    #     print(f'running k={k}, c={c}, b={b}, o={o}, type: {t}')
-    #     result = pool.apply_async(run_om, args=(k, c, b, t, o))
-    #     results.append(result)
 
     pool.close()
     pool.join()
 
-    path = 'data/comparisons/'
+    path = 'new_proposed/'
     for result in results:
-        model, t = result.get()
-        filename = f'comparisonsKC_ADAPTIVE_c-{model.initial_c[0]}_trial-{t}.pbz2'
+        model, k, t = result.get()
+        filename = f'KC_ADAPTIVE_{t}_c-{model.initial_c[0]}_k-{k}_trial-{model.trial}.pbz2'
         
         with bz2.BZ2File(path + filename, 'w') as f:
             pickle.dump(model, f)
             print(f'saved to file, {filename}')
-
 
     """ LOAD FILES """
 

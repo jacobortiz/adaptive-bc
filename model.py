@@ -205,7 +205,7 @@ class Model:
             self.stationary_flag = 1 if self.stationary_counter >= 100 else 0
 
         l = self.max_steps
-        # printProgressBar(0, l, prefix = 'Loading Model:', suffix = 'Complete', length = 50)
+        printProgressBar(0, l, prefix = 'Loading Model:', suffix = 'Complete', length = 50)
         # run model
         while time < self.max_steps - 1 and self.stationary_flag != 1:
             if self.rewiring: rewire_step()
@@ -214,9 +214,9 @@ class Model:
             time += 1
 
             if self.rewiring: self.assortativity_history.append(nx.degree_pearson_correlation_coefficient(nx.Graph(self.edges.copy())))
-            # printProgressBar(time, l, prefix = f'Running {label}:', suffix = 'Complete', length = 50)
+            printProgressBar(time, l, prefix = f'Running Model:', suffix = 'Complete', length = 50)
 
-        # printProgressBar(time, time, prefix = 'Running Model:', suffix = 'Complete', length = 50)
+        printProgressBar(time, time, prefix = 'Running Model:', suffix = 'Complete', length = 50)
         print(f'Model finished. Convergence time: {time}')
 
         self.convergence_time = time
@@ -386,48 +386,45 @@ class Model:
     def min_degree_solution(self, k: int):
         " select nodes with smallest degree"
         return sorted(self.original_graph.degree, key=lambda x: x[1])[:k]
+
+    # testing random selection
+    def proposed_solution(self, k):
+        seed_nodes = []
+        node_potentials = {node: self.__calculate_potential(node, self.original_graph) for node in self.original_graph.nodes()}
+
+        for i in range(k):
+            top_k_nodes = sorted(node_potentials, key=node_potentials.get, reverse=True)[:k]
+            selected_node = random.choice(top_k_nodes) # help escape local minima?
+            seed_nodes.append(selected_node)
+            
+            for neighbor in self.original_graph.neighbors(selected_node):
+                for second_neighbor in self.original_graph.neighbors(neighbor):
+                    if second_neighbor in node_potentials:
+                        node_potentials[second_neighbor] = self.__calculate_potential(second_neighbor, self.original_graph)
+
+            # remove the selected node from cosideration
+            del node_potentials[selected_node]
+
+        return list(self.original_graph.degree(seed_nodes))  
+
+
+    def __calculate_potential(self, node, G):
+        potential = 0
+        clustering_coeff = nx.clustering(G, node)
+        potential += clustering_coeff
+
+        return potential
     
-    def proposed_solution(self, k, omega=1):
-        triads = self.__find_triads()
-        node_scores = self.__top_k_nodes_from_triads(triads)
 
-        for key, value in node_scores.items():
-            score = value
-            node_scores[key] = score + (self.original_graph.degree(key)) * omega
+    # def __calculate_potential(self, node, G):
+    #     potential = 0
+    #     neighbors = set(G.neighbors(node))
+    #     potential += G.degree(node)
+    #     for neighbor in neighbors:
+    #         shared_neighbors = neighbors.intersection(set(G.neighbors(neighbor)))
+    #         potential += len(shared_neighbors)
+    #     return potential
 
-        node_scores = {k: v for k, v in sorted(node_scores.items(), key=lambda item: item[1], reverse=True)}
-        selected_nodes = list(node_scores.keys())[:k]
-
-        return list(self.original_graph.degree(selected_nodes))
-
-
-    def __top_k_nodes_from_triads(self, triads):
-        node_scores = {}
-        for triad in triads:
-            for node in triad:
-                if node in node_scores:
-                    node_scores[node] += 1
-                else:
-                    node_scores[node] = 1
-
-        return node_scores
-    
-    def __find_triads(self):
-        """
-        Identifies triadic closures in the network G.
-        Returns a list of triads (sets of three nodes).
-        """
-        triads = []
-        for node in self.original_graph.nodes():
-            neighbors = list(self.original_graph.neighbors(node))
-            for i, neighbor in enumerate(neighbors):
-                for other_neighbor in neighbors[i+1:]:
-                    if self.original_graph.has_edge(neighbor, other_neighbor):
-                        triads.append((node, neighbor, other_neighbor))
-        return triads     
-
-
-    """ check for correctness """
     def greedy_solution(self, k: int):
         selected_nodes = []
         for _ in range(k):
